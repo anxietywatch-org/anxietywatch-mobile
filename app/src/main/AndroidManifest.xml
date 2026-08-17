@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- === Permisos: primer y segundo plano (Estado E2 del documento atómico) === -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" /> <!-- API 33+ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <!-- Ubicación: SOLO se solicita en tiempo de ejecución cuando hay consentimiento y flujo
+         SOS activo. Declararla aquí no la activa por sí sola. Android exige declarar la
+         COARSE junto a la FINE, aunque solo se pida la FINE en runtime. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- Evitar que Doze/el fabricante mate el monitoreo -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- Revivir el monitoreo tras reinicio del teléfono -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Interrupción de alta prioridad (E3: pantalla de validación sobre el bloqueo) -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+
+    <!-- Wearable Data Layer usa Google Play Services; no requiere permiso de Bluetooth
+         manual como el BLE crudo que describía el documento atómico viejo. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:name=".AnxietyWatchApplication"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="AnxietyWatch"
+        android:theme="@style/Theme.AnxietyWatchMobile"
+        tools:targetApi="34">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.AnxietyWatchMobile">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- EL PUENTE CON EL RELOJ. Google Play Services lo despierta automáticamente
+             cuando llega un MessageEvent o DataEvent en las rutas /anxietywatch/*, incluso
+             con la app completamente cerrada — no depende de que MainActivity esté viva. -->
+        <service
+            android:name=".data.bridge.PhoneDataLayerListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.BIND_LISTENER" />
+            </intent-filter>
+        </service>
+
+        <!-- Estado E2: mantiene la app viva en segundo plano + la notificación persistente
+             obligatoria. START_STICKY + onTaskRemoved manejan la resiliencia (E5). -->
+        <service
+            android:name=".service.MonitoringForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- E5: revive el monitoreo si el teléfono se reinició, solo si el token de 30 min
+             sigue vivo. -->
+        <receiver
+            android:name=".service.BootCompletedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+</manifest>
