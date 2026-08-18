@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             AnxietyWatchTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    TokenEntryScreen(modifier = Modifier.padding(innerPadding))
+                    RootScreen(modifier = Modifier.padding(innerPadding))
                 }
             }
         }
@@ -45,7 +45,53 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun TokenEntryScreen(modifier: Modifier = Modifier) {
+fun RootScreen(modifier: Modifier = Modifier) {
+    val sessionManager = NetworkModule.getSessionManager()
+    var showSplash by remember { mutableStateOf(true) }
+    var hasSession by remember { mutableStateOf(sessionManager.isLoggedIn()) }
+
+    when {
+        showSplash -> {
+            com.anxietywatch.mobile.ui.screens.SplashScreen(
+                onFinished = { showSplash = false }
+            )
+        }
+        hasSession -> {
+            LoggedInPlaceholderScreen(
+                modifier = modifier,
+                role = sessionManager.getUserRole() ?: "desconocido",
+                onLogout = {
+                    sessionManager.clearSession()
+                    hasSession = false
+                }
+            )
+        }
+        else -> {
+            TokenEntryScreen(
+                modifier = modifier,
+                onLinkSuccess = { hasSession = true }
+            )
+        }
+    }
+}
+
+@Composable
+fun LoggedInPlaceholderScreen(
+    modifier: Modifier = Modifier,
+    role: String,
+    onLogout: () -> Unit
+) {
+    Column(modifier = modifier.fillMaxSize().padding(24.dp)) {
+        Text(text = "Sesión activa", style = MaterialTheme.typography.titleLarge)
+        Text(text = "Rol guardado: $role", modifier = Modifier.padding(top = 16.dp))
+        Button(onClick = onLogout, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+            Text("Cerrar sesión (borrar token)")
+        }
+    }
+}
+
+@Composable
+fun TokenEntryScreen(modifier: Modifier = Modifier, onLinkSuccess: () -> Unit) {
     val context = LocalContext.current
     var code by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
@@ -78,6 +124,7 @@ fun TokenEntryScreen(modifier: Modifier = Modifier) {
                             userRole = response.user.role
                         )
                         resultMessage = "Vinculado con éxito. Rol: ${response.user.role}, Nombre: ${response.user.fullName}"
+                        onLinkSuccess()
                     } catch (e: HttpException) {
                         resultMessage = when (e.code()) {
                             404 -> "Código inválido."
