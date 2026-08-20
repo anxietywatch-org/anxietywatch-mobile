@@ -39,3 +39,52 @@ data class AcceptCodeResponse(
     val role: String,
     val user: AuthUser
 )
+
+@Serializable
+data class AnxietyLevel(
+    val current: Int,
+    val trend: String
+)
+
+@Serializable
+data class WeeklyRecords(
+    val used: Int,
+    val limit: Int
+)
+
+@Serializable
+data class DashboardSummary(
+    val anxietyLevel: AnxietyLevel,
+    val weeklyRecords: WeeklyRecords,
+    val streakDays: Int,
+    val exercisesCompleted: Int
+)
+@Serializable
+data class EpisodeSummary(
+    val id: String? = null,
+    val date: String? = null,
+    val severity: String? = null,
+    val durationMinutes: Int? = null,
+    val notes: String? = null
+)
+@Serializable
+data class MedicalProfileUpdate(
+    val fullName: String,
+    val allergies: String? = null,
+    val currentMedications: String? = null,
+    val emergencyContactName: String? = null,
+    val emergencyContactPhone: String? = null,
+    val previousAnxietyDiagnosis: Boolean? = null,
+    val treatingProfessional: String? = null
+)
+@Serializable
+data class ProfileResponse(
+    val fullName: String,
+    val avatarUrl: String? = null,
+    val allergies: String? = null,
+    val currentMedications: String? = null,
+    val emergencyContactName: String? = null,
+    val emergencyContactPhone: String? = null,
+    val previousAnxietyDiagnosis: Boolean? = null,
+    val treatingProfessional: String? = null
+)

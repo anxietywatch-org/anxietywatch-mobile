@@ -8,19 +8,44 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.anxietywatch.mobile.network.NetworkModule
 import com.anxietywatch.mobile.ui.screens.CaregiverHomeScreen
-import com.anxietywatch.mobile.ui.screens.PatientHomeScreen
+import com.anxietywatch.mobile.ui.screens.MedicalInfoScreen
+import com.anxietywatch.mobile.ui.screens.NotificationsScreen
+import com.anxietywatch.mobile.ui.screens.PatientRootScreen
+import com.anxietywatch.mobile.ui.screens.PermissionsScreen
+import com.anxietywatch.mobile.ui.screens.SettingsScreen
 import com.anxietywatch.mobile.ui.screens.SplashScreen
 import com.anxietywatch.mobile.ui.screens.TokenEntryScreen
+import com.anxietywatch.mobile.ui.screens.WelcomeScreen
 
 object Routes {
     const val SPLASH = "splash"
     const val TOKEN_ENTRY = "token_entry"
-    const val PATIENT_HOME = "patient_home"
+    const val WELCOME = "welcome"
+    const val PERMISSIONS = "permissions"
+    const val MEDICAL_INFO = "medical_info"
+    const val PATIENT_ROOT = "patient_root"
     const val CAREGIVER_HOME = "caregiver_home"
+    const val CAREGIVER_SETTINGS = "caregiver_settings"
+    const val NOTIFICATIONS = "notifications"
+    const val WATCH_LINK = "watch_link"
 }
 
-private const val ROLE_PATIENT = "patient"
 private const val ROLE_FAMILY_MEMBER = "family_member"
+
+private fun homeRouteForRole(role: String?): String =
+    if (role == ROLE_FAMILY_MEMBER) Routes.CAREGIVER_HOME else Routes.PATIENT_ROOT
+
+private fun resumeDestination(): String {
+    val session = NetworkModule.getSessionManager()
+    return when {
+        !session.isLoggedIn() -> Routes.TOKEN_ENTRY
+        !session.hasSeenWelcome() -> Routes.WELCOME
+        !session.hasGrantedPermissions() -> Routes.PERMISSIONS
+        !session.hasCompletedMedicalInfo() -> Routes.MEDICAL_INFO
+        !session.hasCompletedWatchStep() -> Routes.WATCH_LINK
+        else -> homeRouteForRole(session.getUserRole())
+    }
+}
 
 @Composable
 fun AppNavigation(modifier: Modifier = Modifier) {
@@ -28,55 +53,77 @@ fun AppNavigation(modifier: Modifier = Modifier) {
 
     NavHost(navController = navController, startDestination = Routes.SPLASH) {
         composable(Routes.SPLASH) {
-            SplashScreen(
-                onFinished = {
-                    val sessionManager = NetworkModule.getSessionManager()
-                    val destination = when {
-                        !sessionManager.isLoggedIn() -> Routes.TOKEN_ENTRY
-                        sessionManager.getUserRole() == ROLE_PATIENT -> Routes.PATIENT_HOME
-                        sessionManager.getUserRole() == ROLE_FAMILY_MEMBER -> Routes.CAREGIVER_HOME
-                        else -> Routes.TOKEN_ENTRY
-                    }
-                    navController.navigateAndClear(destination)
-                }
-            )
+            SplashScreen(onFinished = { navController.navigateAndClear(resumeDestination()) })
         }
 
         composable(Routes.TOKEN_ENTRY) {
-            TokenEntryScreen(
+            TokenEntryScreen(modifier = modifier, onLinkSuccess = { navController.navigateAndClear(Routes.WELCOME) })
+        }
+
+        composable(Routes.WELCOME) {
+            WelcomeScreen(
                 modifier = modifier,
-                onLinkSuccess = {
-                    val role = NetworkModule.getSessionManager().getUserRole()
-                    val destination = if (role == ROLE_FAMILY_MEMBER) Routes.CAREGIVER_HOME else Routes.PATIENT_HOME
-                    navController.navigateAndClear(destination)
+                onContinue = {
+                    NetworkModule.getSessionManager().setWelcomeSeen()
+                    navController.navigateAndClear(Routes.PERMISSIONS)
                 }
             )
         }
 
-        composable(Routes.PATIENT_HOME) {
-            PatientHomeScreen(
+        composable(Routes.PERMISSIONS) {
+            PermissionsScreen(
                 modifier = modifier,
+                onFinished = {
+                    NetworkModule.getSessionManager().setPermissionsGranted()
+                    navController.navigateAndClear(Routes.MEDICAL_INFO)
+                }
+            )
+        }
+
+        composable(Routes.MEDICAL_INFO) {
+            MedicalInfoScreen(
+                modifier = modifier,
+                onFinished = { navController.navigateAndClear(Routes.WATCH_LINK) }
+            )
+        }
+
+        composable(Routes.WATCH_LINK) {
+            com.anxietywatch.mobile.ui.screens.WatchLinkScreen(
+                modifier = modifier,
+                onFinished = { navController.navigateAndClear(homeRouteForRole(NetworkModule.getSessionManager().getUserRole())) }
+            )
+        }
+
+        composable(Routes.PATIENT_ROOT) {
+            PatientRootScreen(
                 onLogout = {
                     NetworkModule.getSessionManager().clearSession()
                     navController.navigateAndClear(Routes.TOKEN_ENTRY)
-                }
+                },
+                onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) }
             )
         }
 
         composable(Routes.CAREGIVER_HOME) {
-            CaregiverHomeScreen(
+            CaregiverHomeScreen(modifier = modifier, onOpenSettings = { navController.navigate(Routes.CAREGIVER_SETTINGS) })
+        }
+
+        composable(Routes.CAREGIVER_SETTINGS) {
+            SettingsScreen(
                 modifier = modifier,
                 onLogout = {
                     NetworkModule.getSessionManager().clearSession()
                     navController.navigateAndClear(Routes.TOKEN_ENTRY)
                 }
             )
+        }
+
+        composable(Routes.NOTIFICATIONS) {
+            NotificationsScreen(modifier = modifier)
         }
     }
 }
 
 private fun NavHostController.navigateAndClear(route: String) {
-    navigate(route) {
-        popUpTo(0) { inclusive = true }
-    }
+    navigate(route) { popUpTo(0) { inclusive = true } }
 }
