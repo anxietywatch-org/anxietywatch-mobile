@@ -19,10 +19,7 @@ object NetworkModule {
         sessionManager = SessionManager(context.applicationContext)
     }
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-    }
-
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
     }

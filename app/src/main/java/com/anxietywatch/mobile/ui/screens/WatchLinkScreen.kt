@@ -4,10 +4,8 @@ import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothDevice
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.compose.foundation.background
@@ -51,9 +49,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.anxietywatch.mobile.network.NetworkModule
+import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.tasks.await
 
 data class PairedDevice(val name: String, val address: String, val device: BluetoothDevice)
 
@@ -90,44 +88,17 @@ private fun getBondedWatches(context: Context): List<PairedDevice> {
     }
 }
 
-private suspend fun attemptConnection(context: Context, device: BluetoothDevice): Boolean {
-    val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
-    } else {
-        true
+/**
+ * Chequeo REAL usando la API oficial de Wear OS (NodeClient), no Bluetooth clásico.
+ * Pregunta a Google Play Services si hay un nodo Wear OS conectado ahora mismo.
+ */
+private suspend fun hasConnectedWearNode(context: Context): Boolean {
+    return try {
+        val nodes = Wearable.getNodeClient(context).connectedNodes.await()
+        nodes.isNotEmpty()
+    } catch (e: Exception) {
+        false
     }
-    if (!hasPermission) return false
-
-    val result = withTimeoutOrNull(6000) {
-        suspendCancellableCoroutine<Boolean> { cont ->
-            val receiver = object : BroadcastReceiver() {
-                override fun onReceive(ctx: Context?, intent: Intent?) {
-                    if (intent?.action == BluetoothDevice.ACTION_UUID) {
-                        val receivedDevice = if (Build.VERSION.SDK_INT >= 33) {
-                            intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
-                        } else {
-                            @Suppress("DEPRECATION")
-                            intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-                        }
-                        if (receivedDevice?.address == device.address && cont.isActive) {
-                            cont.resumeWith(Result.success(true))
-                        }
-                    }
-                }
-            }
-            val filter = IntentFilter(BluetoothDevice.ACTION_UUID)
-            ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
-            cont.invokeOnCancellation {
-                try { context.unregisterReceiver(receiver) } catch (e: Exception) {}
-            }
-            try {
-                device.fetchUuidsWithSdp()
-            } catch (e: SecurityException) {
-                if (cont.isActive) cont.resumeWith(Result.success(false))
-            }
-        }
-    }
-    return result ?: false
 }
 
 @Composable
@@ -137,6 +108,7 @@ fun WatchLinkScreen(modifier: Modifier = Modifier, onFinished: () -> Unit) {
     var devices by remember { mutableStateOf(getBondedWatches(context)) }
     var selectedDevice by remember { mutableStateOf<PairedDevice?>(null) }
     var connectState by remember { mutableStateOf(ConnectState.IDLE) }
+    var diagnosticMessage by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = modifier.fillMaxSize().padding(24.dp),
@@ -174,13 +146,6 @@ fun WatchLinkScreen(modifier: Modifier = Modifier, onFinished: () -> Unit) {
                         text = "No encontramos relojes emparejados con este teléfono.",
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        text = "Primero empareja tu Galaxy Watch7 desde los ajustes de Bluetooth del sistema, luego regresa aquí.",
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp)
                     )
                     Button(
                         onClick = { context.startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)) },
@@ -236,7 +201,7 @@ fun WatchLinkScreen(modifier: Modifier = Modifier, onFinished: () -> Unit) {
                 Column(modifier = Modifier.fillMaxWidth().padding(top = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator()
                     Text(
-                        text = "Vinculando con ${selectedDevice?.name}...",
+                        text = "Verificando conexión Wear OS real...",
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(top = 12.dp)
                     )
@@ -245,7 +210,7 @@ fun WatchLinkScreen(modifier: Modifier = Modifier, onFinished: () -> Unit) {
             ConnectState.SUCCESS -> {
                 Column(modifier = Modifier.fillMaxWidth().padding(top = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(imageVector = Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
-                    Text(text = "¡Conectado exitosamente!", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
+                    Text(text = "¡Reloj Wear OS detectado y conectado!", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
                     Button(onClick = onFinished, shape = RoundedCornerShape(28.dp), modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
                         Text("Continuar")
                     }
@@ -255,11 +220,20 @@ fun WatchLinkScreen(modifier: Modifier = Modifier, onFinished: () -> Unit) {
                 Column(modifier = Modifier.fillMaxWidth().padding(top = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(imageVector = Icons.Filled.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(40.dp))
                     Text(
-                        text = "No pudimos conectar con el reloj. Verifica que esté cerca y encendido.",
+                        text = "El teléfono no detecta un nodo Wear OS activo.",
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(top = 8.dp)
                     )
+                    diagnosticMessage?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
                     Button(onClick = { connectState = ConnectState.IDLE }, shape = RoundedCornerShape(28.dp), modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
                         Text("Intentar de nuevo")
                     }
@@ -268,15 +242,15 @@ fun WatchLinkScreen(modifier: Modifier = Modifier, onFinished: () -> Unit) {
             ConnectState.IDLE -> {
                 Button(
                     onClick = {
-                        val chosen = selectedDevice ?: return@Button
                         connectState = ConnectState.CONNECTING
                         scope.launch {
-                            val success = attemptConnection(context, chosen.device)
-                            if (success) {
-                                NetworkModule.getSessionManager().saveLinkedWatchAddress(chosen.address)
+                            val connected = hasConnectedWearNode(context)
+                            if (connected) {
+                                selectedDevice?.let { NetworkModule.getSessionManager().saveLinkedWatchAddress(it.address) }
                                 NetworkModule.getSessionManager().setWatchStepDone()
                                 connectState = ConnectState.SUCCESS
                             } else {
+                                diagnosticMessage = "Esto suele significar que el reloj no está emparejado como dispositivo Wear OS con este teléfono (vía Wear OS/Galaxy Wearable), aunque sí esté emparejado por Bluetooth clásico."
                                 connectState = ConnectState.FAILED
                             }
                         }

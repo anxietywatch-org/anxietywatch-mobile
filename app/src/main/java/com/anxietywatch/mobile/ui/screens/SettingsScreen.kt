@@ -7,12 +7,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Logout
@@ -21,6 +23,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Watch
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -29,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,19 +46,36 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
+    isCaregiver: Boolean = false,
     onLogout: () -> Unit,
     onOpenProfile: () -> Unit = {},
     onOpenWatch: () -> Unit = {},
     onOpenSecurity: () -> Unit = {},
     onOpenHelp: () -> Unit = {},
     onOpenTerms: () -> Unit = {},
-    onOpenAbout: () -> Unit = {}
+    onOpenAbout: () -> Unit = {},
+    onOpenLinkedCaregiver: () -> Unit = {}
 ) {
     var notificationsEnabled by remember { mutableStateOf(true) }
     var soundEnabled by remember { mutableStateOf(false) }
+    var showConfirmLogout by remember { mutableStateOf(false) }
+
+    if (showConfirmLogout) {
+        AlertDialog(
+            onDismissRequest = { showConfirmLogout = false },
+            title = { Text("¿Cerrar sesión?") },
+            text = { Text("Tendrás que ingresar un nuevo código de vinculación para volver a entrar.") },
+            confirmButton = {
+                TextButton(onClick = { showConfirmLogout = false; onLogout() }) { Text("Cerrar sesión") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmLogout = false }) { Text("Cancelar") }
+            }
+        )
+    }
 
     Column(
-        modifier = modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState())
+        modifier = modifier.fillMaxSize().statusBarsPadding().padding(24.dp).verticalScroll(rememberScrollState())
     ) {
         Text(text = "Ajustes", style = MaterialTheme.typography.headlineMedium)
 
@@ -66,7 +87,10 @@ fun SettingsScreen(
         SettingsGroup(title = "CUENTA") {
             NavRow(Icons.Filled.Person, "Perfil Personal", onOpenProfile)
             NavRow(Icons.Filled.Security, "Seguridad y Privacidad", onOpenSecurity)
-            NavRow(Icons.Filled.Watch, "Vincular Reloj", onOpenWatch)
+            if (!isCaregiver) {
+                NavRow(Icons.Filled.Watch, "Vincular Reloj", onOpenWatch)
+                NavRow(Icons.Filled.FavoriteBorder, "Mi cuidador", onOpenLinkedCaregiver)
+            }
         }
 
         SettingsGroup(title = "SOPORTE") {
@@ -76,7 +100,7 @@ fun SettingsScreen(
         }
 
         Button(
-            onClick = onLogout,
+            onClick = { showConfirmLogout = true },
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer),
             modifier = Modifier.fillMaxWidth().padding(top = 24.dp)

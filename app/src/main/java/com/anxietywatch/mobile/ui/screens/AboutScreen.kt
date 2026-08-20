@@ -32,12 +32,40 @@ fun AboutScreen(modifier: Modifier = Modifier, onBack: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(top = 12.dp)
         )
-        Text(text = "Desarrollado por:", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 24.dp))
         Text(
-            text = "Jorge Alberto Rodríguez Enríquez",
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(top = 8.dp)
+            text = "Desarrollado por:",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 24.dp)
         )
+
+        Column(
+            modifier = Modifier.padding(top = 8.dp)
+        ) {
+            Text(
+                text = "Jorge Alberto Rodríguez Enríquez",
+                style = MaterialTheme.typography.bodyLarge
+            )
+
+            Text(
+                text = "David Rafael Aguilar Solis",
+                style = MaterialTheme.typography.bodyLarge
+            )
+
+            Text(
+                text = "Diana Montoya Rodríguez",
+                style = MaterialTheme.typography.bodyLarge
+            )
+
+            Text(
+                text = "Kevin Hernandez Trejo",
+                style = MaterialTheme.typography.bodyLarge
+            )
+
+            Text(
+                text = "Rafael Hernandez Perez",
+                style = MaterialTheme.typography.bodyLarge
+            )
+        }
         Text(
             text = "Versión 1.0.0",
             style = MaterialTheme.typography.bodySmall,

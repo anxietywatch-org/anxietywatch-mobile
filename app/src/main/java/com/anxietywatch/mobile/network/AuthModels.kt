@@ -88,3 +88,39 @@ data class ProfileResponse(
     val previousAnxietyDiagnosis: Boolean? = null,
     val treatingProfessional: String? = null
 )
+@Serializable
+data class LinkedPatient(
+    val id: String? = null,
+    val fullName: String? = null,
+    val status: String? = null,
+    val role: String? = null,
+    val createdAt: String? = null,
+    val code: String? = null
+)
+
+@Serializable
+data class GenerateTokenRequest(
+    val role: String = "family_member"
+)
+@Serializable
+data class SosTriggerRequest(
+    val eventId: String,
+    val deviceId: String,
+    val triggeredAt: String,
+    val source: String = "MOBILE",
+    val reason: String? = null
+)
+
+@Serializable
+data class SosCancelRequest(
+    val eventId: String,
+    val deviceId: String,
+    val cancelledAt: String,
+    val reason: String? = null
+)
+
+@Serializable
+data class DeviceRegisterRequest(
+    val platform: String = "android",
+    val token: String
+)

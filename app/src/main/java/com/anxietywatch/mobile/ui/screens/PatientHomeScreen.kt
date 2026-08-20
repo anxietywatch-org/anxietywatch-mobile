@@ -17,17 +17,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Air
-import androidx.compose.material.icons.filled.Bedtime
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.SelfImprovement
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,18 +32,22 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.anxietywatch.mobile.network.DashboardSummary
 import com.anxietywatch.mobile.network.NetworkModule
+import kotlinx.coroutines.launch
 import retrofit2.HttpException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun PatientHomeScreen(
@@ -61,17 +62,26 @@ fun PatientHomeScreen(
     var isLoading by remember { mutableStateOf(true) }
     var summary by remember { mutableStateOf<DashboardSummary?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var currentDateTime by remember {
+        mutableStateOf(SimpleDateFormat("EEEE d 'de' MMMM, HH:mm", Locale("es", "ES")).format(Date()))
+    }
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
+    suspend fun loadData() {
         try {
             summary = NetworkModule.api.getDashboardSummary()
+            errorMessage = null
         } catch (e: HttpException) {
             errorMessage = "Error del servidor: código ${e.code()}"
         } catch (e: Exception) {
             errorMessage = "Error de conexión: ${e.message}"
-        } finally {
-            isLoading = false
         }
+        currentDateTime = SimpleDateFormat("EEEE d 'de' MMMM, HH:mm", Locale("es", "ES")).format(Date())
+    }
+
+    LaunchedEffect(Unit) {
+        loadData()
+        isLoading = false
     }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -83,20 +93,35 @@ fun PatientHomeScreen(
                 .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = currentDateTime.replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                IconButton(onClick = { scope.launch { isLoading = true; loadData(); isLoading = false } }) {
+                    Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Actualizar", tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+
             HeartRateGaugeCard()
 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                MiniStatCard(Modifier.weight(1f), Icons.Filled.Air, "Respiración", "—", "rpm")
-                MiniStatCard(Modifier.weight(1f), Icons.Filled.Bedtime, "Sueño", "—", "hrs")
+                MiniStatCard(Modifier.weight(1f), Icons.Filled.Favorite, "Respiración", "—", "rpm")
+                MiniStatCard(Modifier.weight(1f), Icons.Filled.Favorite, "Sueño", "—", "hrs")
             }
 
             Text(text = "Acciones rápidas", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
 
-            QuickActionRow(icon = Icons.Filled.SelfImprovement, label = "Relajarme", onClick = onOpenRelaxation)
-            QuickActionRow(icon = Icons.Filled.History, label = "Historial", onClick = onOpenHistory)
+            QuickActionRow(icon = Icons.Filled.Favorite, label = "Relajarme", onClick = onOpenRelaxation)
+            QuickActionRow(icon = Icons.Filled.Favorite, label = "Historial", onClick = onOpenHistory)
             QuickActionRow(icon = Icons.Filled.Settings, label = "Ajustes", onClick = onOpenSettings)
 
             Text(text = "Tu resumen", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
@@ -104,7 +129,7 @@ fun PatientHomeScreen(
             if (isLoading) CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
 
             summary?.let { data ->
-                androidx.compose.foundation.layout.Box(modifier = Modifier.clickable(onClick = onOpenHistory)) {
+                Box(modifier = Modifier.clickable(onClick = onOpenHistory)) {
                     Column {
                         SummaryCard("Nivel de ansiedad", "${data.anxietyLevel.current}", "Tendencia: ${data.anxietyLevel.trend}")
                         SummaryCard("Registros esta semana", "${data.weeklyRecords.used} / ${data.weeklyRecords.limit}", "Usados de tu límite semanal")
@@ -131,7 +156,7 @@ private fun TopHeaderBar(avatarUri: String?, onAvatarClick: () -> Unit, onNotifi
         Text(text = "AnxietyWatch", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                imageVector = Icons.Filled.Notifications,
+                imageVector = Icons.Filled.Favorite,
                 contentDescription = "Notificaciones",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp).clickable(onClick = onNotificationsClick)
@@ -188,7 +213,7 @@ private fun HeartRateGaugeCard() {
 }
 
 @Composable
-private fun MiniStatCard(modifier: Modifier = Modifier, icon: ImageVector, label: String, value: String, unit: String) {
+private fun MiniStatCard(modifier: Modifier = Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String, unit: String) {
     Card(modifier = modifier, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -201,7 +226,7 @@ private fun MiniStatCard(modifier: Modifier = Modifier, icon: ImageVector, label
 }
 
 @Composable
-private fun QuickActionRow(icon: ImageVector, label: String, onClick: () -> Unit) {
+private fun QuickActionRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp).clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
@@ -212,7 +237,6 @@ private fun QuickActionRow(icon: ImageVector, label: String, onClick: () -> Unit
                 Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
                 Text(text = label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 12.dp))
             }
-            Icon(imageVector = Icons.Filled.ChevronRight, contentDescription = null)
         }
     }
 }

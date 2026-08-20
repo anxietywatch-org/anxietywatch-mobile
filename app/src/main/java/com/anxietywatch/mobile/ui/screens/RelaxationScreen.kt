@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.SelfImprovement
+import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -31,11 +32,17 @@ import androidx.compose.ui.unit.dp
 private data class RelaxationOption(val icon: ImageVector, val title: String, val subtitle: String, val available: Boolean)
 
 @Composable
-fun RelaxationScreen(modifier: Modifier = Modifier, onOpenBreathing: () -> Unit, onOpenMusic: () -> Unit, onBack: () -> Unit) {
+fun RelaxationScreen(
+    modifier: Modifier = Modifier,
+    onOpenBreathing: () -> Unit,
+    onOpenMusic: () -> Unit,
+    onOpenGrounding: () -> Unit,
+    onBack: () -> Unit
+) {
     val options = listOf(
         RelaxationOption(Icons.Filled.Air, "Respiración guiada", "Técnica 4-4-4 con temporizador", true),
+        RelaxationOption(Icons.Filled.Terrain, "Grounding", "Técnica 5-4-3-2-1 paso a paso", true),
         RelaxationOption(Icons.Filled.LibraryMusic, "Sonidos relajantes", "Sonidos de la app o tu música", true),
-        RelaxationOption(Icons.Filled.SelfImprovement, "Meditación", "Próximamente", false),
         RelaxationOption(Icons.Filled.EditNote, "Diario de gratitud", "Próximamente", false)
     )
 
@@ -62,6 +69,7 @@ fun RelaxationScreen(modifier: Modifier = Modifier, onOpenBreathing: () -> Unit,
                         when (option.title) {
                             "Respiración guiada" -> onOpenBreathing()
                             "Sonidos relajantes" -> onOpenMusic()
+                            "Grounding" -> onOpenGrounding()
                         }
                     },
                 shape = RoundedCornerShape(16.dp),

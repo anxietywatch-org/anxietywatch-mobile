@@ -56,11 +56,96 @@ class SessionManager(context: Context) {
             .putString(KEY_SLEEP_HOURS, sleepHours)
             .apply()
     }
+
     fun recordBreathingSessionCompleted() {
         val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
         val current = getBreathingSessionDates()
         val updated = (current + today).takeLast(60)
         encryptedPrefs.edit().putString(KEY_BREATHING_SESSIONS, updated.joinToString(",")).apply()
+    }
+
+    fun recordGroundingSessionCompleted() {
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+        val current = getGroundingSessionDates()
+        val updated = (current + today).takeLast(60)
+        encryptedPrefs.edit().putString(KEY_GROUNDING_SESSIONS, updated.joinToString(",")).apply()
+    }
+
+    fun getGroundingSessionDates(): List<String> {
+        val raw = encryptedPrefs.getString(KEY_GROUNDING_SESSIONS, "") ?: ""
+        return if (raw.isBlank()) emptyList() else raw.split(",")
+    }
+
+    fun saveLatestHeartRate(bpm: Int) {
+        encryptedPrefs.edit()
+            .putInt(KEY_LATEST_HR, bpm)
+            .putLong(KEY_LATEST_HR_TIME, System.currentTimeMillis())
+            .apply()
+    }
+
+    fun getLatestHeartRate(): Int? {
+        val value = encryptedPrefs.getInt(KEY_LATEST_HR, -1)
+        return if (value == -1) null else value
+    }
+
+    fun getLatestHeartRateAgeMillis(): Long? {
+        val time = encryptedPrefs.getLong(KEY_LATEST_HR_TIME, -1)
+        return if (time == -1L) null else System.currentTimeMillis() - time
+    }
+
+    fun saveLastSosEvent(eventId: String, wasCancelled: Boolean) {
+        encryptedPrefs.edit()
+            .putString(KEY_LAST_SOS_ID, eventId)
+            .putBoolean(KEY_LAST_SOS_CANCELLED, wasCancelled)
+            .apply()
+    }
+
+    // isAnomalyPending() la sigue escribiendo PhoneFogListenerService cuando llega
+    // BPM real por encima del umbral -- esto NO es simulación, es el estado real
+    // de detección basado en datos reales del reloj.
+    fun setAnomalyPending(pending: Boolean) {
+        encryptedPrefs.edit().putBoolean(KEY_ANOMALY_PENDING, pending).apply()
+    }
+    fun isAnomalyPending(): Boolean = encryptedPrefs.getBoolean(KEY_ANOMALY_PENDING, false)
+
+    fun recordCrisisEvent(durationSeconds: Int) {
+        val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+        val entry = "$timestamp|$durationSeconds"
+        val current = getCrisisEvents()
+        val updated = (current + entry).takeLast(50)
+        encryptedPrefs.edit().putString(KEY_CRISIS_EVENTS, updated.joinToString(";;")).apply()
+    }
+    fun getCrisisEvents(): List<String> {
+        val raw = encryptedPrefs.getString(KEY_CRISIS_EVENTS, "") ?: ""
+        return if (raw.isBlank()) emptyList() else raw.split(";;")
+    }
+
+    fun recordFalsePositive() {
+        val current = encryptedPrefs.getInt(KEY_FALSE_POSITIVE_COUNT, 0)
+        encryptedPrefs.edit().putInt(KEY_FALSE_POSITIVE_COUNT, current + 1).apply()
+    }
+    fun setPendingCriticalAlert(patientName: String) {
+        encryptedPrefs.edit()
+            .putBoolean(KEY_PENDING_CRITICAL_ALERT, true)
+            .putString(KEY_PENDING_CRITICAL_ALERT_PATIENT, patientName)
+            .apply()
+    }
+    fun hasPendingCriticalAlert(): Boolean = encryptedPrefs.getBoolean(KEY_PENDING_CRITICAL_ALERT, false)
+    fun getPendingCriticalAlertPatientName(): String? = encryptedPrefs.getString(KEY_PENDING_CRITICAL_ALERT_PATIENT, null)
+    fun clearPendingCriticalAlert() {
+        encryptedPrefs.edit().putBoolean(KEY_PENDING_CRITICAL_ALERT, false).apply()
+    }
+
+    fun recordCriticalAlertHistory(patientName: String) {
+        val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+        val entry = "$timestamp|$patientName"
+        val current = getCriticalAlertHistory()
+        val updated = (current + entry).takeLast(50)
+        encryptedPrefs.edit().putString(KEY_CRITICAL_ALERT_HISTORY, updated.joinToString(";;")).apply()
+    }
+    fun getCriticalAlertHistory(): List<String> {
+        val raw = encryptedPrefs.getString(KEY_CRITICAL_ALERT_HISTORY, "") ?: ""
+        return if (raw.isBlank()) emptyList() else raw.split(";;")
     }
 
     fun getBreathingSessionDates(): List<String> {
@@ -92,6 +177,13 @@ class SessionManager(context: Context) {
     fun hasCompletedWatchStep(): Boolean = encryptedPrefs.getBoolean(KEY_ONBOARD_WATCH, false)
 
     fun saveLinkedWatchAddress(address: String) = encryptedPrefs.edit().putString(KEY_WATCH_ADDRESS, address).apply()
+    fun saveLinkedCaregiverInfo(name: String) {
+        encryptedPrefs.edit().putString(KEY_LINKED_CAREGIVER, name).apply()
+    }
+    fun getLinkedCaregiverInfo(): String? = encryptedPrefs.getString(KEY_LINKED_CAREGIVER, null)
+    fun clearLinkedCaregiverInfo() {
+        encryptedPrefs.edit().remove(KEY_LINKED_CAREGIVER).apply()
+    }
     fun getLinkedWatchAddress(): String? = encryptedPrefs.getString(KEY_WATCH_ADDRESS, null)
 
     fun clearSession() {
@@ -118,5 +210,17 @@ class SessionManager(context: Context) {
         private const val KEY_RELAXATION_TECHNIQUE = "wellness_relaxation"
         private const val KEY_SLEEP_HOURS = "wellness_sleep_hours"
         private const val KEY_BREATHING_SESSIONS = "breathing_sessions"
+        private const val KEY_LATEST_HR = "latest_heart_rate"
+        private const val KEY_LATEST_HR_TIME = "latest_heart_rate_time"
+        private const val KEY_LAST_SOS_ID = "last_sos_id"
+        private const val KEY_LAST_SOS_CANCELLED = "last_sos_cancelled"
+        private const val KEY_ANOMALY_PENDING = "anomaly_pending"
+        private const val KEY_CRISIS_EVENTS = "crisis_events"
+        private const val KEY_FALSE_POSITIVE_COUNT = "false_positive_count"
+        private const val KEY_GROUNDING_SESSIONS = "grounding_sessions"
+        private const val KEY_CRITICAL_ALERT_HISTORY = "critical_alert_history"
+        private const val KEY_PENDING_CRITICAL_ALERT = "pending_critical_alert"
+        private const val KEY_PENDING_CRITICAL_ALERT_PATIENT = "pending_critical_alert_patient"
+        private const val KEY_LINKED_CAREGIVER = "linked_caregiver_name"
     }
 }

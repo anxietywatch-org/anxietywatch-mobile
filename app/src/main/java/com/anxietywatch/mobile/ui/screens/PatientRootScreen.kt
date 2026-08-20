@@ -11,32 +11,60 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.anxietywatch.mobile.network.NetworkModule
+import kotlinx.coroutines.delay
 
 private enum class PatientTab { HOME, HISTORY, SETTINGS }
-private enum class Overlay { NONE, PROFILE, WATCH, RELAXATION, BREATHING, MUSIC, SECURITY, HELP, TERMS, ABOUT }
-
+private enum class Overlay { NONE, PROFILE, WATCH, RELAXATION, BREATHING, MUSIC, GROUNDING, SECURITY, HELP, TERMS, ABOUT, ANOMALY, CRISIS, LINKED_CAREGIVER }
 @Composable
 fun PatientRootScreen(onLogout: () -> Unit, onOpenNotifications: () -> Unit) {
     var selectedTab by remember { mutableStateOf(PatientTab.HOME) }
     var overlay by remember { mutableStateOf(Overlay.NONE) }
     var avatarUri by remember { mutableStateOf(NetworkModule.getSessionManager().getAvatarUri()) }
 
+    // Observador real: revisa cada 3s si llegó una anomalía real desde el reloj
+    // (vía PhoneFogListenerService) o desde la prueba manual en Ajustes.
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(3000)
+            if (NetworkModule.getSessionManager().isAnomalyPending() && overlay == Overlay.NONE) {
+                overlay = Overlay.ANOMALY
+            }
+        }
+    }
+
     when (overlay) {
         Overlay.PROFILE -> { ProfileScreen(avatarUri = avatarUri, onAvatarChanged = { avatarUri = it }, onBack = { overlay = Overlay.NONE }); return }
         Overlay.WATCH -> { WatchLinkScreen(onFinished = { overlay = Overlay.NONE }); return }
-        Overlay.RELAXATION -> { RelaxationScreen(onOpenBreathing = { overlay = Overlay.BREATHING }, onOpenMusic = { overlay = Overlay.MUSIC }, onBack = { overlay = Overlay.NONE }); return }
+        Overlay.RELAXATION -> { RelaxationScreen(onOpenBreathing = { overlay = Overlay.BREATHING }, onOpenMusic = { overlay = Overlay.MUSIC }, onOpenGrounding = { overlay = Overlay.GROUNDING }, onBack = { overlay = Overlay.NONE }); return }
         Overlay.BREATHING -> { BreathingExerciseScreen(onBack = { overlay = Overlay.RELAXATION }); return }
         Overlay.MUSIC -> { MusicScreen(onBack = { overlay = Overlay.RELAXATION }); return }
+        Overlay.GROUNDING -> { GroundingScreen(onBack = { overlay = Overlay.RELAXATION }); return }
         Overlay.SECURITY -> { SecurityScreen(onBack = { overlay = Overlay.NONE }); return }
         Overlay.HELP -> { HelpScreen(onBack = { overlay = Overlay.NONE }); return }
         Overlay.TERMS -> { TermsScreen(onBack = { overlay = Overlay.NONE }); return }
         Overlay.ABOUT -> { AboutScreen(onBack = { overlay = Overlay.NONE }); return }
+        Overlay.LINKED_CAREGIVER -> { LinkedCaregiverScreen(onBack = { overlay = Overlay.NONE }); return }
+        Overlay.ANOMALY -> {
+            AnomalyDetectionScreen(
+                onConfirmActive = { overlay = Overlay.NONE },
+                onNeedHelp = {
+                    NetworkModule.getSessionManager().setAnomalyPending(false)
+                    overlay = Overlay.CRISIS
+                }
+            )
+            return
+        }
+        Overlay.CRISIS -> {
+            CrisisActiveScreen(onFinished = { overlay = Overlay.NONE })
+            return
+        }
         Overlay.NONE -> {}
     }
 
@@ -74,7 +102,14 @@ fun PatientRootScreen(onLogout: () -> Unit, onOpenNotifications: () -> Unit) {
                 avatarUri = avatarUri,
                 onAvatarClick = { overlay = Overlay.PROFILE }
             )
-            PatientTab.HISTORY -> HistoryScreen(modifier = Modifier.padding(innerPadding))
+            PatientTab.HISTORY -> {
+                var selectedEpisode by remember { mutableStateOf<com.anxietywatch.mobile.network.EpisodeSummary?>(null) }
+                if (selectedEpisode != null) {
+                    EpisodeDetailScreen(episode = selectedEpisode!!, onBack = { selectedEpisode = null })
+                } else {
+                    HistoryScreen(modifier = Modifier.padding(innerPadding), onOpenEpisode = { selectedEpisode = it })
+                }
+            }
             PatientTab.SETTINGS -> SettingsScreen(
                 modifier = Modifier.padding(innerPadding),
                 onLogout = onLogout,
@@ -83,7 +118,8 @@ fun PatientRootScreen(onLogout: () -> Unit, onOpenNotifications: () -> Unit) {
                 onOpenSecurity = { overlay = Overlay.SECURITY },
                 onOpenHelp = { overlay = Overlay.HELP },
                 onOpenTerms = { overlay = Overlay.TERMS },
-                onOpenAbout = { overlay = Overlay.ABOUT }
+                onOpenAbout = { overlay = Overlay.ABOUT },
+                onOpenLinkedCaregiver = { overlay = Overlay.LINKED_CAREGIVER }
             )
         }
     }
