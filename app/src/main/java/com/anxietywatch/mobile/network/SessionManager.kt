@@ -181,6 +181,46 @@ class SessionManager(context: Context) {
         encryptedPrefs.edit().putString(KEY_LINKED_CAREGIVER, name).apply()
     }
     fun getLinkedCaregiverInfo(): String? = encryptedPrefs.getString(KEY_LINKED_CAREGIVER, null)
+    // Preferencias reales (E13/E04)
+    fun setNotificationsEnabled(enabled: Boolean) = encryptedPrefs.edit().putBoolean(KEY_NOTIFICATIONS_ENABLED, enabled).apply()
+    fun areNotificationsEnabled(): Boolean = encryptedPrefs.getBoolean(KEY_NOTIFICATIONS_ENABLED, true)
+
+    fun setSoundEnabled(enabled: Boolean) = encryptedPrefs.edit().putBoolean(KEY_SOUND_ENABLED, enabled).apply()
+    fun isSoundEnabled(): Boolean = encryptedPrefs.getBoolean(KEY_SOUND_ENABLED, false)
+
+    // Sensibilidad de detección configurable (H085/H086)
+    fun setAnomalyThresholdBpm(bpm: Int) = encryptedPrefs.edit().putInt(KEY_ANOMALY_THRESHOLD, bpm).apply()
+    fun getAnomalyThresholdBpm(): Int = encryptedPrefs.getInt(KEY_ANOMALY_THRESHOLD, 120)
+
+    fun setDetectionPaused(paused: Boolean, untilMillis: Long) {
+        encryptedPrefs.edit()
+            .putBoolean(KEY_DETECTION_PAUSED, paused)
+            .putLong(KEY_DETECTION_PAUSED_UNTIL, untilMillis)
+            .apply()
+    }
+    fun isDetectionCurrentlyPaused(): Boolean {
+        val paused = encryptedPrefs.getBoolean(KEY_DETECTION_PAUSED, false)
+        if (!paused) return false
+        val until = encryptedPrefs.getLong(KEY_DETECTION_PAUSED_UNTIL, 0)
+        return System.currentTimeMillis() < until
+    }
+
+    // Expiración de sesión por inactividad (H196/H198)
+    fun updateLastActivityTimestamp() {
+        encryptedPrefs.edit().putLong(KEY_LAST_ACTIVITY, System.currentTimeMillis()).apply()
+    }
+    fun hasSessionExpiredByInactivity(): Boolean {
+        if (!isLoggedIn()) return false
+        val last = encryptedPrefs.getLong(KEY_LAST_ACTIVITY, System.currentTimeMillis())
+        val elapsed = System.currentTimeMillis() - last
+        return elapsed > SESSION_INACTIVITY_LIMIT_MILLIS
+    }
+    fun setSessionExpiredFlag(expired: Boolean) = encryptedPrefs.edit().putBoolean(KEY_SESSION_EXPIRED_FLAG, expired).apply()
+    fun consumeSessionExpiredFlag(): Boolean {
+        val value = encryptedPrefs.getBoolean(KEY_SESSION_EXPIRED_FLAG, false)
+        if (value) encryptedPrefs.edit().putBoolean(KEY_SESSION_EXPIRED_FLAG, false).apply()
+        return value
+    }
     fun clearLinkedCaregiverInfo() {
         encryptedPrefs.edit().remove(KEY_LINKED_CAREGIVER).apply()
     }
@@ -222,5 +262,13 @@ class SessionManager(context: Context) {
         private const val KEY_PENDING_CRITICAL_ALERT = "pending_critical_alert"
         private const val KEY_PENDING_CRITICAL_ALERT_PATIENT = "pending_critical_alert_patient"
         private const val KEY_LINKED_CAREGIVER = "linked_caregiver_name"
+        private const val KEY_NOTIFICATIONS_ENABLED = "notifications_enabled"
+        private const val KEY_SOUND_ENABLED = "sound_enabled"
+        private const val KEY_ANOMALY_THRESHOLD = "anomaly_threshold_bpm"
+        private const val KEY_DETECTION_PAUSED = "detection_paused"
+        private const val KEY_DETECTION_PAUSED_UNTIL = "detection_paused_until"
+        private const val KEY_LAST_ACTIVITY = "last_activity_timestamp"
+        private const val KEY_SESSION_EXPIRED_FLAG = "session_expired_flag"
+        val SESSION_INACTIVITY_LIMIT_MILLIS = 30 * 60 * 1000L
     }
 }

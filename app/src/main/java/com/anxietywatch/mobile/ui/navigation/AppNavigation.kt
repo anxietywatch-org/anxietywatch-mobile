@@ -36,7 +36,7 @@ object Routes {
     const val HELP = "help"
     const val TERMS = "terms"
     const val ABOUT = "about"
-
+    const val SESSION_EXPIRED = "session_expired"
     const val ROLE_CONFIRMATION = "role_confirmation"
 }
 
@@ -48,6 +48,9 @@ private fun homeRouteForRole(role: String?): String = if (isCaregiverRole(role))
 private fun resumeDestination(): String {
     val session = NetworkModule.getSessionManager()
     val caregiver = isCaregiverRole(session.getUserRole())
+    if (!session.isLoggedIn() && session.consumeSessionExpiredFlag()) {
+        return Routes.SESSION_EXPIRED
+    }
     return when {
         !session.isLoggedIn() -> Routes.TOKEN_ENTRY
         !session.hasSeenWelcome() -> if (caregiver) Routes.CAREGIVER_WELCOME else Routes.WELCOME
@@ -153,6 +156,13 @@ fun AppNavigation(modifier: Modifier = Modifier) {
 
         composable(Routes.NOTIFICATIONS) {
             NotificationsScreen(modifier = modifier)
+        }
+
+        composable(Routes.SESSION_EXPIRED) {
+            com.anxietywatch.mobile.ui.screens.SessionExpiredScreen(
+                modifier = modifier,
+                onContinue = { navController.navigateAndClear(Routes.TOKEN_ENTRY) }
+            )
         }
     }
 }

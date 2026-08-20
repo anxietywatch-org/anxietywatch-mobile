@@ -54,107 +54,289 @@ fun SettingsScreen(
     onOpenHelp: () -> Unit = {},
     onOpenTerms: () -> Unit = {},
     onOpenAbout: () -> Unit = {},
-    onOpenLinkedCaregiver: () -> Unit = {}
+    onOpenLinkedCaregiver: () -> Unit = {},
+    onOpenManagePermissions: () -> Unit = {},
+    onOpenDetectionSettings: () -> Unit = {}
 ) {
-    var notificationsEnabled by remember { mutableStateOf(true) }
-    var soundEnabled by remember { mutableStateOf(false) }
-    var showConfirmLogout by remember { mutableStateOf(false) }
+    val session =
+        com.anxietywatch.mobile.network.NetworkModule.getSessionManager()
+
+    var notificationsEnabled by remember {
+        mutableStateOf(session.areNotificationsEnabled())
+    }
+
+    var soundEnabled by remember {
+        mutableStateOf(session.isSoundEnabled())
+    }
+
+    var showConfirmLogout by remember {
+        mutableStateOf(false)
+    }
 
     if (showConfirmLogout) {
         AlertDialog(
-            onDismissRequest = { showConfirmLogout = false },
-            title = { Text("¿Cerrar sesión?") },
-            text = { Text("Tendrás que ingresar un nuevo código de vinculación para volver a entrar.") },
+            onDismissRequest = {
+                showConfirmLogout = false
+            },
+            title = {
+                Text("¿Cerrar sesión?")
+            },
+            text = {
+                Text(
+                    "Tendrás que ingresar un nuevo código de vinculación para volver a entrar."
+                )
+            },
             confirmButton = {
-                TextButton(onClick = { showConfirmLogout = false; onLogout() }) { Text("Cerrar sesión") }
+                TextButton(
+                    onClick = {
+                        showConfirmLogout = false
+                        onLogout()
+                    }
+                ) {
+                    Text("Cerrar sesión")
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirmLogout = false }) { Text("Cancelar") }
+                TextButton(
+                    onClick = {
+                        showConfirmLogout = false
+                    }
+                ) {
+                    Text("Cancelar")
+                }
             }
         )
     }
 
     Column(
-        modifier = modifier.fillMaxSize().statusBarsPadding().padding(24.dp).verticalScroll(rememberScrollState())
+        modifier = modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState())
     ) {
-        Text(text = "Ajustes", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            text = "Ajustes",
+            style = MaterialTheme.typography.headlineMedium
+        )
 
         SettingsGroup(title = "PREFERENCIAS DE SISTEMA") {
-            ToggleRow(Icons.Filled.Notifications, "Notificaciones", "Alertas críticas y actualizaciones", notificationsEnabled) { notificationsEnabled = it }
-            ToggleRow(Icons.Filled.VolumeUp, "Sonido", "Efectos auditivos en la interfaz", soundEnabled) { soundEnabled = it }
+
+            ToggleRow(
+                Icons.Filled.Notifications,
+                "Notificaciones",
+                "Alertas críticas y actualizaciones",
+                notificationsEnabled
+            ) {
+                notificationsEnabled = it
+                session.setNotificationsEnabled(it)
+            }
+
+            ToggleRow(
+                Icons.Filled.VolumeUp,
+                "Sonido",
+                "Efectos auditivos en la interfaz",
+                soundEnabled
+            ) {
+                soundEnabled = it
+                session.setSoundEnabled(it)
+            }
         }
 
         SettingsGroup(title = "CUENTA") {
-            NavRow(Icons.Filled.Person, "Perfil Personal", onOpenProfile)
-            NavRow(Icons.Filled.Security, "Seguridad y Privacidad", onOpenSecurity)
+
+            NavRow(
+                Icons.Filled.Person,
+                "Perfil Personal",
+                onOpenProfile
+            )
+
+            NavRow(
+                Icons.Filled.Security,
+                "Seguridad y Privacidad",
+                onOpenSecurity
+            )
+
             if (!isCaregiver) {
-                NavRow(Icons.Filled.Watch, "Vincular Reloj", onOpenWatch)
-                NavRow(Icons.Filled.FavoriteBorder, "Mi cuidador", onOpenLinkedCaregiver)
+
+                NavRow(
+                    Icons.Filled.Watch,
+                    "Vincular Reloj",
+                    onOpenWatch
+                )
+
+                NavRow(
+                    Icons.Filled.FavoriteBorder,
+                    "Mi cuidador",
+                    onOpenLinkedCaregiver
+                )
             }
         }
 
         SettingsGroup(title = "SOPORTE") {
-            NavRow(Icons.Filled.Help, "Centro de Ayuda", onOpenHelp)
-            NavRow(Icons.Filled.Description, "Términos de Servicio", onOpenTerms)
-            NavRow(Icons.Filled.Info, "Acerca del proyecto", onOpenAbout)
+
+            NavRow(
+                Icons.Filled.Help,
+                "Centro de Ayuda",
+                onOpenHelp
+            )
+
+            NavRow(
+                Icons.Filled.Description,
+                "Términos de Servicio",
+                onOpenTerms
+            )
+
+            NavRow(
+                Icons.Filled.Info,
+                "Acerca del proyecto",
+                onOpenAbout
+            )
         }
 
         Button(
-            onClick = { showConfirmLogout = true },
+            onClick = {
+                showConfirmLogout = true
+            },
             shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-            modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 24.dp)
         ) {
-            Icon(imageVector = Icons.Filled.Logout, contentDescription = null)
-            Text(text = "Cerrar sesión", modifier = Modifier.padding(start = 8.dp))
+            Icon(
+                imageVector = Icons.Filled.Logout,
+                contentDescription = null
+            )
+
+            Text(
+                text = "Cerrar sesión",
+                modifier = Modifier.padding(start = 8.dp)
+            )
         }
 
         Text(
             text = "AnxietyWatch",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 24.dp, bottom = 24.dp)
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .padding(
+                    top = 24.dp,
+                    bottom = 24.dp
+                )
         )
     }
 }
 
 @Composable
-private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
+private fun SettingsGroup(
+    title: String,
+    content: @Composable () -> Unit
+) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 20.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 8.dp))
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
             content()
         }
     }
 }
 
 @Composable
-private fun ToggleRow(icon: ImageVector, title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+private fun ToggleRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-        Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.bodyLarge)
-            Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp)
+        )
+
+        Column(
+            modifier = Modifier
+                .padding(start = 16.dp)
+                .weight(1f)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge
+            )
+
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
     }
 }
 
 @Composable
-private fun NavRow(icon: ImageVector, label: String, onClick: () -> Unit) {
+private fun NavRow(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
-        Text(text = label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 16.dp).weight(1f))
-        Icon(imageVector = Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.outlineVariant)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(22.dp)
+        )
+
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier
+                .padding(start = 16.dp)
+                .weight(1f)
+        )
+
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.outlineVariant
+        )
     }
 }

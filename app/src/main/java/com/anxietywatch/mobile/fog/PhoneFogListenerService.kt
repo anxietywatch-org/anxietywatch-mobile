@@ -25,7 +25,6 @@ private object FogPaths {
     const val ACK_SOS_PREFIX = "/fog/v1/ack/sos/"
     const val ACK_SOS_CANCEL_PREFIX = "/fog/v1/ack/sos-cancel/"
 }
-private const val ANOMALY_BPM_THRESHOLD = 120.0
 
 class PhoneFogListenerService : WearableListenerService() {
 
@@ -81,12 +80,11 @@ class PhoneFogListenerService : WearableListenerService() {
                 }
 
                 latestHeartRate?.let { bpm ->
-                    NetworkModule.getSessionManager().saveLatestHeartRate(bpm.toInt())
-                    // Umbral real de anomalía: BPM elevado en reposo.
-                    // Este valor es un punto de partida razonable, no una decisión clínica --
-                    // se puede ajustar cuando haya más datos reales de referencia.
-                    if (bpm >= ANOMALY_BPM_THRESHOLD) {
-                        NetworkModule.getSessionManager().setAnomalyPending(true)
+                    val session = NetworkModule.getSessionManager()
+                    session.saveLatestHeartRate(bpm.toInt())
+                    val threshold = session.getAnomalyThresholdBpm()
+                    if (bpm >= threshold && !session.isDetectionCurrentlyPaused()) {
+                        session.setAnomalyPending(true)
                     }
                 }
 

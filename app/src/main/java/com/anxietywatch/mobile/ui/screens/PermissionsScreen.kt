@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.CameraAlt
@@ -87,6 +89,7 @@ fun PermissionsScreen(
             .fillMaxSize()
             .statusBarsPadding()
             .padding(24.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         Text(
             text = "Permisos del sistema",
@@ -151,7 +154,7 @@ fun PermissionsScreen(
             shape = RoundedCornerShape(28.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp)
+                .padding(top = 16.dp, bottom = 24.dp)
         ) {
             Text("Continuar")
         }

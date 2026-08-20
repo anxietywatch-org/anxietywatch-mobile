@@ -116,6 +116,20 @@ fun MedicalInfoScreen(modifier: Modifier = Modifier, onFinished: () -> Unit) {
     var relaxationTechnique by remember { mutableStateOf("") }
     var sleepHours by remember { mutableStateOf("") }
 
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        try {
+            val existing = NetworkModule.api.getProfile()
+            existing.allergies?.let { if (it.isNotBlank()) allergies = it }
+            existing.currentMedications?.let { if (it.isNotBlank()) currentMedications = it }
+            existing.emergencyContactName?.let { if (it.isNotBlank()) emergencyContactName = it }
+            existing.emergencyContactPhone?.let { if (it.isNotBlank()) emergencyContactPhone = it }
+            existing.previousAnxietyDiagnosis?.let { previousDiagnosis = it }
+            existing.treatingProfessional?.let { if (it.isNotBlank()) treatingProfessional = it }
+        } catch (e: Exception) {
+            // Si falla la carga, seguimos con campos vacíos -- no bloqueamos el onboarding.
+        }
+    }
+
     val pickContact = rememberContactPickerLauncher { picked ->
         emergencyContactName = picked.name
         emergencyContactPhone = picked.phone

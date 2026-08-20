@@ -100,7 +100,9 @@ data class LinkedPatient(
 
 @Serializable
 data class GenerateTokenRequest(
-    val role: String = "family_member"
+    // El cuidador genera el código; "patient" indica que quien lo canjee
+    // se vinculará como paciente bajo el cuidado de quien genera el código.
+    val role: String = "patient"
 )
 @Serializable
 data class SosTriggerRequest(
