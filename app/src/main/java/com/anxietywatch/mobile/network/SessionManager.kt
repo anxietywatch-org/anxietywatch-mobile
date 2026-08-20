@@ -56,6 +56,17 @@ class SessionManager(context: Context) {
             .putString(KEY_SLEEP_HOURS, sleepHours)
             .apply()
     }
+    fun recordBreathingSessionCompleted() {
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+        val current = getBreathingSessionDates()
+        val updated = (current + today).takeLast(60)
+        encryptedPrefs.edit().putString(KEY_BREATHING_SESSIONS, updated.joinToString(",")).apply()
+    }
+
+    fun getBreathingSessionDates(): List<String> {
+        val raw = encryptedPrefs.getString(KEY_BREATHING_SESSIONS, "") ?: ""
+        return if (raw.isBlank()) emptyList() else raw.split(",")
+    }
 
     fun getBaselineAnxiety(): String? = encryptedPrefs.getString(KEY_BASELINE_ANXIETY, null)
     fun getTriggers(): String? = encryptedPrefs.getString(KEY_TRIGGERS, null)
@@ -106,5 +117,6 @@ class SessionManager(context: Context) {
         private const val KEY_TRIGGERS = "wellness_triggers"
         private const val KEY_RELAXATION_TECHNIQUE = "wellness_relaxation"
         private const val KEY_SLEEP_HOURS = "wellness_sleep_hours"
+        private const val KEY_BREATHING_SESSIONS = "breathing_sessions"
     }
 }

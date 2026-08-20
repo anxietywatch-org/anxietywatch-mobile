@@ -54,6 +54,7 @@ fun PatientHomeScreen(
     onOpenSettings: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpenNotifications: () -> Unit,
+    onOpenRelaxation: () -> Unit,
     avatarUri: String?,
     onAvatarClick: () -> Unit
 ) {
@@ -94,7 +95,7 @@ fun PatientHomeScreen(
 
             Text(text = "Acciones rápidas", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
 
-            QuickActionRow(icon = Icons.Filled.SelfImprovement, label = "Relajarme", onClick = { })
+            QuickActionRow(icon = Icons.Filled.SelfImprovement, label = "Relajarme", onClick = onOpenRelaxation)
             QuickActionRow(icon = Icons.Filled.History, label = "Historial", onClick = onOpenHistory)
             QuickActionRow(icon = Icons.Filled.Settings, label = "Ajustes", onClick = onOpenSettings)
 
@@ -103,10 +104,14 @@ fun PatientHomeScreen(
             if (isLoading) CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
 
             summary?.let { data ->
-                SummaryCard("Nivel de ansiedad", "${data.anxietyLevel.current}", "Tendencia: ${data.anxietyLevel.trend}")
-                SummaryCard("Registros esta semana", "${data.weeklyRecords.used} / ${data.weeklyRecords.limit}", "Usados de tu límite semanal")
-                SummaryCard("Racha", "${data.streakDays} días", "Días consecutivos de seguimiento")
-                SummaryCard("Ejercicios completados", "${data.exercisesCompleted}", "Total acumulado")
+                androidx.compose.foundation.layout.Box(modifier = Modifier.clickable(onClick = onOpenHistory)) {
+                    Column {
+                        SummaryCard("Nivel de ansiedad", "${data.anxietyLevel.current}", "Tendencia: ${data.anxietyLevel.trend}")
+                        SummaryCard("Registros esta semana", "${data.weeklyRecords.used} / ${data.weeklyRecords.limit}", "Usados de tu límite semanal")
+                        SummaryCard("Racha", "${data.streakDays} días", "Días consecutivos de seguimiento")
+                        SummaryCard("Ejercicios completados", "${data.exercisesCompleted}", "Total acumulado")
+                    }
+                }
             }
 
             errorMessage?.let { Text(text = it, modifier = Modifier.padding(top = 16.dp)) }

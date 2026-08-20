@@ -28,6 +28,13 @@ object Routes {
     const val CAREGIVER_SETTINGS = "caregiver_settings"
     const val NOTIFICATIONS = "notifications"
     const val WATCH_LINK = "watch_link"
+    const val RELAXATION = "relaxation"
+    const val BREATHING = "breathing"
+    const val SECURITY = "security"
+    const val HELP = "help"
+    const val TERMS = "terms"
+    const val ABOUT = "about"
+    const val MUSIC = "music"
 }
 
 private const val ROLE_FAMILY_MEMBER = "family_member"
@@ -120,6 +127,42 @@ fun AppNavigation(modifier: Modifier = Modifier) {
 
         composable(Routes.NOTIFICATIONS) {
             NotificationsScreen(modifier = modifier)
+        }
+
+        composable(Routes.RELAXATION) {
+            com.anxietywatch.mobile.ui.screens.RelaxationScreen(
+                modifier = modifier,
+                onOpenBreathing = { navController.navigate(Routes.BREATHING) },
+                onOpenMusic = { navController.navigate(Routes.MUSIC) },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.MUSIC) {
+            com.anxietywatch.mobile.ui.screens.MusicScreen(
+                modifier = modifier,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.BREATHING) {
+            com.anxietywatch.mobile.ui.screens.BreathingExerciseScreen(
+                modifier = modifier,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.SECURITY) {
+            com.anxietywatch.mobile.ui.screens.SecurityScreen(modifier = modifier, onBack = { navController.popBackStack() })
+        }
+        composable(Routes.HELP) {
+            com.anxietywatch.mobile.ui.screens.HelpScreen(modifier = modifier, onBack = { navController.popBackStack() })
+        }
+        composable(Routes.TERMS) {
+            com.anxietywatch.mobile.ui.screens.TermsScreen(modifier = modifier, onBack = { navController.popBackStack() })
+        }
+        composable(Routes.ABOUT) {
+            com.anxietywatch.mobile.ui.screens.AboutScreen(modifier = modifier, onBack = { navController.popBackStack() })
         }
     }
 }

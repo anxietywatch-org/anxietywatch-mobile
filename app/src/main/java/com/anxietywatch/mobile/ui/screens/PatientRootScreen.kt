@@ -19,7 +19,7 @@ import androidx.compose.ui.Modifier
 import com.anxietywatch.mobile.network.NetworkModule
 
 private enum class PatientTab { HOME, HISTORY, SETTINGS }
-private enum class Overlay { NONE, PROFILE, WATCH }
+private enum class Overlay { NONE, PROFILE, WATCH, RELAXATION, BREATHING, MUSIC, SECURITY, HELP, TERMS, ABOUT }
 
 @Composable
 fun PatientRootScreen(onLogout: () -> Unit, onOpenNotifications: () -> Unit) {
@@ -28,18 +28,15 @@ fun PatientRootScreen(onLogout: () -> Unit, onOpenNotifications: () -> Unit) {
     var avatarUri by remember { mutableStateOf(NetworkModule.getSessionManager().getAvatarUri()) }
 
     when (overlay) {
-        Overlay.PROFILE -> {
-            ProfileScreen(
-                avatarUri = avatarUri,
-                onAvatarChanged = { newUri -> avatarUri = newUri },
-                onBack = { overlay = Overlay.NONE }
-            )
-            return
-        }
-        Overlay.WATCH -> {
-            WatchLinkScreen(onFinished = { overlay = Overlay.NONE })
-            return
-        }
+        Overlay.PROFILE -> { ProfileScreen(avatarUri = avatarUri, onAvatarChanged = { avatarUri = it }, onBack = { overlay = Overlay.NONE }); return }
+        Overlay.WATCH -> { WatchLinkScreen(onFinished = { overlay = Overlay.NONE }); return }
+        Overlay.RELAXATION -> { RelaxationScreen(onOpenBreathing = { overlay = Overlay.BREATHING }, onOpenMusic = { overlay = Overlay.MUSIC }, onBack = { overlay = Overlay.NONE }); return }
+        Overlay.BREATHING -> { BreathingExerciseScreen(onBack = { overlay = Overlay.RELAXATION }); return }
+        Overlay.MUSIC -> { MusicScreen(onBack = { overlay = Overlay.RELAXATION }); return }
+        Overlay.SECURITY -> { SecurityScreen(onBack = { overlay = Overlay.NONE }); return }
+        Overlay.HELP -> { HelpScreen(onBack = { overlay = Overlay.NONE }); return }
+        Overlay.TERMS -> { TermsScreen(onBack = { overlay = Overlay.NONE }); return }
+        Overlay.ABOUT -> { AboutScreen(onBack = { overlay = Overlay.NONE }); return }
         Overlay.NONE -> {}
     }
 
@@ -73,6 +70,7 @@ fun PatientRootScreen(onLogout: () -> Unit, onOpenNotifications: () -> Unit) {
                 onOpenSettings = { selectedTab = PatientTab.SETTINGS },
                 onOpenHistory = { selectedTab = PatientTab.HISTORY },
                 onOpenNotifications = onOpenNotifications,
+                onOpenRelaxation = { overlay = Overlay.RELAXATION },
                 avatarUri = avatarUri,
                 onAvatarClick = { overlay = Overlay.PROFILE }
             )
@@ -81,7 +79,11 @@ fun PatientRootScreen(onLogout: () -> Unit, onOpenNotifications: () -> Unit) {
                 modifier = Modifier.padding(innerPadding),
                 onLogout = onLogout,
                 onOpenProfile = { overlay = Overlay.PROFILE },
-                onOpenWatch = { overlay = Overlay.WATCH }
+                onOpenWatch = { overlay = Overlay.WATCH },
+                onOpenSecurity = { overlay = Overlay.SECURITY },
+                onOpenHelp = { overlay = Overlay.HELP },
+                onOpenTerms = { overlay = Overlay.TERMS },
+                onOpenAbout = { overlay = Overlay.ABOUT }
             )
         }
     }
