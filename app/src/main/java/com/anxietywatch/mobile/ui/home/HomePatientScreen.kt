@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,37 +49,53 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.anxietywatch.mobile.data.remote.EpisodeDto
 
 /**
  * Home del paciente (E06), portado 1:1 desde el HTML/CSS real del Stitch
  * (home_paciente_ritmo_cardiaco_con_respiracion/code.html) -- mismos colores exactos,
  * misma jerarquia, mismo texto. [state] llega vacio/mock por ahora -- se conecta a datos
- * reales de telemetria cuando construyamos el repositorio que lee los lotes que ya sube
- * PhoneDataLayerListenerService.
+ * reales de dashboard/episodios mediante HomePatientViewModel.
  */
 data class HomePatientUiState(
-    val bpm: Int = 70,
+    val bpm: Int? = null,
+    val watchSampleTimestamp: String? = null,
     val statusLabel: String = "Estado: Normal",
     val statusMessage: String = "Tu ritmo cardíaco es estable. Estás haciendo un gran " +
         "trabajo manteniendo la calma hoy.",
     val breathingRate: Int = 14,
     val sleepHours: Double = 7.5,
+    val episodes: List<EpisodeDto> = emptyList(),
+    val streakDays: Int = 0,
+    val weeklyRecordsUsed: Int = 0,
+    val weeklyRecordsLimit: Int? = null,
 )
-
-// Tonos exactos del mockup que no son parte de la paleta M3 base -- el propio diseño los
-// usa como overrides directos (bg-[#EBDBD3], bg-[#8F917C], etc.), asi que los replico igual.
-private val HeroCardBackground = Color(0xFFEBDBD3)
-private val StatusPillBackground = Color(0xFF8F917C)
-private val RelajarmeButtonBackground = Color(0xFFD0BEA3)
-private val SecondaryButtonBackground = Color(0xFFEBDBD3)
 
 @Composable
 fun HomePatientScreen(
-    state: HomePatientUiState = HomePatientUiState(),
+    state: HomePatientUiState? = null,
     onRelajarmeClick: () -> Unit = {},
     onHistorialClick: () -> Unit = {},
     onAjustesClick: () -> Unit = {},
+    viewModel: HomePatientViewModel = hiltViewModel(),
 ) {
+    val networkState by viewModel.uiState.collectAsState()
+    val displayedState = state ?: when (networkState) {
+        is HomePatientNetworkUiState.Success -> (networkState as HomePatientNetworkUiState.Success).data.state
+        is HomePatientNetworkUiState.Error -> {
+            Text(
+                (networkState as HomePatientNetworkUiState.Error).message,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(24.dp),
+            )
+            return
+        }
+        else -> {
+            Text("Cargando tu resumen...", modifier = Modifier.padding(24.dp))
+            return
+        }
+    }
     Column(modifier = Modifier.fillMaxSize()) {
         TopBar()
         Column(
@@ -87,13 +105,13 @@ fun HomePatientScreen(
                 .padding(horizontal = 16.dp),
         ) {
             Spacer(Modifier.height(16.dp))
-            HeartRateHeroCard(state)
+            HeartRateHeroCard(displayedState)
             Spacer(Modifier.height(20.dp))
-            QuickInsightsRow(state)
+            QuickInsightsRow(displayedState)
             Spacer(Modifier.height(20.dp))
-            QuickActionsSection(onRelajarmeClick, onHistorialClick, onAjustesClick)
+            QuickActionsSection(onRelajarmeClick)
             Spacer(Modifier.height(20.dp))
-            BitacoraRecienteCard()
+            BitacoraRecienteCard(displayedState.episodes)
             Spacer(Modifier.height(88.dp)) // deja aire sobre la barra inferior
         }
     }
@@ -129,8 +147,8 @@ private fun TopBar() {
 @Composable
 private fun HeartRateHeroCard(state: HomePatientUiState) {
     Surface(
-        color = HeroCardBackground,
-        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.primary,
+        shape = RoundedCornerShape(32.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(
@@ -142,31 +160,31 @@ private fun HeartRateHeroCard(state: HomePatientUiState) {
             Text(
                 "Frecuencia Cardiaca",
                 style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onPrimary,
             )
             Spacer(Modifier.height(16.dp))
             BreathingRing(bpm = state.bpm)
             Spacer(Modifier.height(24.dp))
             Row(
                 modifier = Modifier
-                    .background(StatusPillBackground, RoundedCornerShape(50))
+                    .background(MaterialTheme.colorScheme.tertiary, RoundedCornerShape(50))
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
                     Icons.Filled.CheckCircle,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = MaterialTheme.colorScheme.onTertiary,
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(state.statusLabel, color = Color.White, style = MaterialTheme.typography.labelMedium)
+                Text(state.statusLabel, color = MaterialTheme.colorScheme.onTertiary, style = MaterialTheme.typography.labelMedium)
             }
             Spacer(Modifier.height(12.dp))
             Text(
                 state.statusMessage,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.86f),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
         }
@@ -178,7 +196,7 @@ private fun HeartRateHeroCard(state: HomePatientUiState) {
  * original, con delays escalonados de 0s/0.5s/1s) + el circulo blanco central con el BPM.
  */
 @Composable
-private fun BreathingRing(bpm: Int) {
+private fun BreathingRing(bpm: Int?) {
     val transition = rememberInfiniteTransition(label = "breathing")
     val scaleOuter by transition.animateFloat(
         initialValue = 1f,
@@ -196,36 +214,36 @@ private fun BreathingRing(bpm: Int) {
                 .fillMaxSize()
                 .graphicsLayer { scaleX = scaleOuter; scaleY = scaleOuter }
                 .clip(CircleShape)
-                .background(StatusPillBackground.copy(alpha = 0.20f)),
+                .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.20f)),
         )
         Box(
             modifier = Modifier
                 .size(190.dp)
                 .clip(CircleShape)
-                .background(StatusPillBackground.copy(alpha = 0.30f)),
+                .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.30f)),
         )
         Box(
             modifier = Modifier
                 .size(160.dp)
                 .clip(CircleShape)
-                .background(StatusPillBackground.copy(alpha = 0.40f)),
+                .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.40f)),
         )
         Box(
             modifier = Modifier
                 .size(150.dp)
                 .clip(CircleShape)
-                .background(Color.White),
+                    .background(MaterialTheme.colorScheme.surface),
             contentAlignment = Alignment.Center,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    "$bpm",
+                    bpm?.toString() ?: "--",
                     fontSize = 40.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Text(
-                    "BPM",
+                    if (bpm == null) "Sin datos del reloj aún" else "BPM",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -236,21 +254,21 @@ private fun BreathingRing(bpm: Int) {
 
 @Composable
 private fun QuickInsightsRow(state: HomePatientUiState) {
-    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-        InsightCard(
-            icon = Icons.Filled.Air,
-            label = "Respiración",
-            value = "${state.breathingRate}",
-            unit = "rpm",
-            modifier = Modifier.weight(1f),
-        )
-        InsightCard(
-            icon = Icons.Filled.Bedtime,
-            label = "Sueño",
-            value = "${state.sleepHours}",
-            unit = "hrs",
-            modifier = Modifier.weight(1f),
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            InsightCard(Icons.Filled.Air, "Respiración", "${state.breathingRate}", "rpm", Modifier.weight(1f))
+            InsightCard(Icons.Filled.Bedtime, "Sueño", "${state.sleepHours}", "hrs", Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            InsightCard(Icons.Filled.Spa, "Racha", "${state.streakDays}", "días", Modifier.weight(1f))
+            InsightCard(
+                Icons.Filled.HistoryEdu,
+                "Registros",
+                "${state.weeklyRecordsUsed}",
+                state.weeklyRecordsLimit?.let { "/$it" } ?: "",
+                Modifier.weight(1f),
+            )
+        }
     }
 }
 
@@ -283,8 +301,6 @@ private fun InsightCard(
 @Composable
 private fun QuickActionsSection(
     onRelajarmeClick: () -> Unit,
-    onHistorialClick: () -> Unit,
-    onAjustesClick: () -> Unit,
 ) {
     Column {
         Text(
@@ -296,22 +312,8 @@ private fun QuickActionsSection(
         QuickActionButton(
             icon = Icons.Filled.SelfImprovement,
             label = "Relajarme",
-            background = RelajarmeButtonBackground,
+            background = MaterialTheme.colorScheme.primaryContainer,
             onClick = onRelajarmeClick,
-        )
-        Spacer(Modifier.height(12.dp))
-        QuickActionButton(
-            icon = Icons.Filled.HistoryEdu,
-            label = "Historial",
-            background = SecondaryButtonBackground,
-            onClick = onHistorialClick,
-        )
-        Spacer(Modifier.height(12.dp))
-        QuickActionButton(
-            icon = Icons.Filled.Settings,
-            label = "Ajustes",
-            background = SecondaryButtonBackground,
-            onClick = onAjustesClick,
         )
     }
 }
@@ -340,26 +342,26 @@ private fun QuickActionButton(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
-                    color = Color.White.copy(alpha = 0.3f),
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.3f),
                     shape = RoundedCornerShape(8.dp),
                 ) {
                     Icon(
                         icon,
                         contentDescription = null,
-                        tint = Color(0xFF1F1F1F),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.padding(8.dp),
                     )
                 }
                 Spacer(Modifier.width(16.dp))
-                Text(label, style = MaterialTheme.typography.headlineLarge, color = Color(0xFF1F1F1F))
+                Text(label, style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
             }
-            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color(0xFF1F1F1F))
+             Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
         }
     }
 }
 
 @Composable
-private fun BitacoraRecienteCard() {
+private fun BitacoraRecienteCard(episodes: List<EpisodeDto>) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
         shape = RoundedCornerShape(12.dp),
@@ -379,17 +381,18 @@ private fun BitacoraRecienteCard() {
                 )
             }
             Spacer(Modifier.height(12.dp))
-            BitacoraItem(
-                dotColor = MaterialTheme.colorScheme.tertiary,
-                title = "Respiración Guiada",
-                subtitle = "Hoy, 10:30 AM • 5 min",
-            )
-            Spacer(Modifier.height(12.dp))
-            BitacoraItem(
-                dotColor = MaterialTheme.colorScheme.outlineVariant,
-                title = "Registro de Ánimo",
-                subtitle = "Ayer, 8:45 PM • Calma",
-            )
+            if (episodes.isEmpty()) {
+                Text("No hay episodios registrados en los últimos 7 días.", style = MaterialTheme.typography.bodySmall)
+            } else {
+                episodes.forEachIndexed { index, episode ->
+                    if (index > 0) Spacer(Modifier.height(12.dp))
+                    BitacoraItem(
+                        dotColor = if (episode.intensity >= 70) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
+                        title = "Episodio · intensidad ${episode.intensity}",
+                        subtitle = "${episode.date} · ${episode.notes ?: "Sin notas"}",
+                    )
+                }
+            }
         }
     }
 }
@@ -418,7 +421,10 @@ fun HomeBottomNavBar(
     selected: HomeBottomTab,
     onSelect: (HomeBottomTab) -> Unit,
 ) {
-    Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

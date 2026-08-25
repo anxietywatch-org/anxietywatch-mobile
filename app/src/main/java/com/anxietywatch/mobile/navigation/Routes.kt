@@ -11,14 +11,17 @@ sealed class Routes(val route: String) {
     data object CrisisActive : Routes("crisis_active") // E08 — respiración en caja
     data object History : Routes("history") // E12
     data object SettingsPatient : Routes("settings_patient") // E13
+    data object WatchPairing : Routes("watch_pairing")
+    data object ManageWatch : Routes("manage_watch")
     data object DashboardCaregiver : Routes("dashboard_caregiver") // E14
     data object PatientDetail : Routes("patient_detail/{patientId}") { // E16
         fun build(patientId: String) = "patient_detail/$patientId"
     }
     data object CriticalAlert : Routes("critical_alert/{eventId}") // E17
-    data object SupportGuide : Routes("support_guide/{eventId}") // E18
+    data object EventDetail : Routes("event_detail/{eventId}") {
+        fun build(eventId: String) = "event_detail/$eventId"
+    }
+    data object SupportGuide : Routes("support_guide/{eventId}") { // E18
+        fun build(eventId: String) = "support_guide/$eventId"
+    }
 }
-
-// TODO: NavHost real con composable() por ruta, a construir a medida que se agreguen las
-// pantallas — dejo las rutas ya nombradas para que coincidan 1:1 con las épicas del backlog
-// (PRODUCT_BACKLOG.xlsx, hoja "Movil") y no haya que rediseñar la navegación después.
