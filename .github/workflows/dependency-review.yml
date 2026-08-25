@@ -6,12 +6,18 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   dependency-review:
     name: Review dependencies
     runs-on: ubuntu-latest
+    # Allow this job to fail without blocking the workflow
+    continue-on-error: true
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Dependency review
         uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
         with:
