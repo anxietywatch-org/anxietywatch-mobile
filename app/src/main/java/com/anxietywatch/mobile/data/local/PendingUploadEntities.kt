@@ -33,6 +33,33 @@ data class PendingSosEventEntity(
     val attemptCount: Int = 0,
 )
 
+@Entity(tableName = "pending_sos_cancel_events")
+data class PendingSosCancelEventEntity(
+    @PrimaryKey val eventId: String,
+    val requestJson: String,
+    val createdAtMillis: Long,
+    val syncStatus: String = SyncStatus.PENDING,
+    val attemptCount: Int = 0,
+)
+
+@Entity(tableName = "pending_suspected_events")
+data class PendingSuspectedEventEntity(
+    @PrimaryKey val eventId: String,
+    val requestJson: String,
+    val createdAtMillis: Long,
+    val syncStatus: String = SyncStatus.PENDING,
+    val attemptCount: Int = 0,
+)
+
+@Entity(tableName = "pending_event_decisions")
+data class PendingEventDecisionEntity(
+    @PrimaryKey val eventId: String,
+    val requestJson: String,
+    val createdAtMillis: Long,
+    val syncStatus: String = SyncStatus.PENDING,
+    val attemptCount: Int = 0,
+)
+
 object SyncStatus {
     const val PENDING = "PENDING"
     const val SYNCED = "SYNCED"

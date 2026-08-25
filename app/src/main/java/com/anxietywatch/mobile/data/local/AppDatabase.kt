@@ -13,8 +13,14 @@ import androidx.room.RoomDatabase
  * SQLCipher y cambiar Room.databaseBuilder por el builder de SupportFactory cifrado.
  */
 @Database(
-    entities = [PendingTelemetryBatchEntity::class, PendingSosEventEntity::class],
-    version = 1,
+    entities = [
+        PendingTelemetryBatchEntity::class,
+        PendingSosEventEntity::class,
+        PendingSosCancelEventEntity::class,
+        PendingSuspectedEventEntity::class,
+        PendingEventDecisionEntity::class,
+    ],
+    version = 2,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -23,6 +29,15 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "anxietywatch.db")
+                .addMigrations(MIGRATION_1_2)
                 .build()
+
+        private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("CREATE TABLE IF NOT EXISTS pending_sos_cancel_events (eventId TEXT NOT NULL PRIMARY KEY, requestJson TEXT NOT NULL, createdAtMillis INTEGER NOT NULL, syncStatus TEXT NOT NULL, attemptCount INTEGER NOT NULL)")
+                database.execSQL("CREATE TABLE IF NOT EXISTS pending_suspected_events (eventId TEXT NOT NULL PRIMARY KEY, requestJson TEXT NOT NULL, createdAtMillis INTEGER NOT NULL, syncStatus TEXT NOT NULL, attemptCount INTEGER NOT NULL)")
+                database.execSQL("CREATE TABLE IF NOT EXISTS pending_event_decisions (eventId TEXT NOT NULL PRIMARY KEY, requestJson TEXT NOT NULL, createdAtMillis INTEGER NOT NULL, syncStatus TEXT NOT NULL, attemptCount INTEGER NOT NULL)")
+            }
+        }
     }
 }

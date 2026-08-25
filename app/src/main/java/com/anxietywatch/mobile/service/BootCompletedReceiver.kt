@@ -12,7 +12,7 @@ import javax.inject.Inject
 
 /**
  * E5 del documento atomico: revive el monitoreo si el telefono se reinicio, PERO solo si
- * el token de 30 min todavia no expiro.
+ * el token todavía no expiró.
  */
 @AndroidEntryPoint
 class BootCompletedReceiver : BroadcastReceiver() {

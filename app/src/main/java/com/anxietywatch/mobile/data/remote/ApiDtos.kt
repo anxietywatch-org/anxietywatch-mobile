@@ -143,3 +143,129 @@ data class AcceptByCodeRequest(
     val code: String,
     val deviceId: String,
 )
+
+@Serializable
+data class SosCancelRequest(
+    val eventId: String,
+    val deviceId: String,
+    val userId: String? = null,
+    val cancelledAt: String,
+    val reason: String? = null,
+)
+
+@Serializable
+data class SosCancelResponse(
+    val eventId: String? = null,
+    val status: String? = null,
+)
+
+@Serializable
+data class SuspectedEventFeaturesRequest(
+    val heartRateMean: Double? = null,
+    val heartRateMax: Double? = null,
+    val heartRateSlopeBpmPerMinute: Double? = null,
+    val heartRateDeltaFromBaseline: Double? = null,
+    val rmssdMillis: Double? = null,
+    val sdnnMillis: Double? = null,
+    val movementMagnitudeMean: Double? = null,
+    val movementVariance: Double? = null,
+    val validSampleRatio: Double,
+    val lastSampleAgeSeconds: Long,
+    val sampleCount: Int,
+)
+
+@Serializable
+data class SuspectedEventBaselineRequest(
+    val sampleCount: Long,
+    val meanHeartRate: Double,
+    val heartRateM2: Double,
+    val updatedAtEpochMillis: Long,
+)
+
+@Serializable
+data class SuspectedEventRequest(
+    val eventId: String,
+    val deviceId: String,
+    val userId: String? = null,
+    val sessionId: String,
+    val sequence: Int,
+    val detectedAt: String,
+    val state: String,
+    val score: Double,
+    val rulesVersion: String,
+    val features: SuspectedEventFeaturesRequest,
+    val baseline: SuspectedEventBaselineRequest,
+)
+
+@Serializable
+data class EventDecisionRequest(
+    val eventId: String,
+    val deviceId: String,
+    val userId: String? = null,
+    val sessionId: String,
+    val sequence: Int,
+    val detectedAt: String,
+    val respondedAt: String,
+    val response: String,
+)
+
+@Serializable
+data class WearableEventResponse(
+    val eventId: String? = null,
+    val status: String? = null,
+)
+
+// --- Perfil, dashboard y episodios (contrato confirmado en backend) ---
+
+@Serializable
+data class ProfileResponseDto(
+    val fullName: String,
+    val avatarUrl: String? = null,
+    val allergies: String? = null,
+    val currentMedications: String? = null,
+    val emergencyContactName: String? = null,
+    val emergencyContactPhone: String? = null,
+    val previousAnxietyDiagnosis: Boolean? = null,
+    val treatingProfessional: String? = null,
+)
+
+@Serializable
+data class ProfileUpdateRequest(
+    val fullName: String,
+    val avatarUrl: String? = null,
+    val allergies: String? = null,
+    val currentMedications: String? = null,
+    val emergencyContactName: String? = null,
+    val emergencyContactPhone: String? = null,
+    val previousAnxietyDiagnosis: Boolean? = null,
+    val treatingProfessional: String? = null,
+)
+
+@Serializable
+data class DashboardSummaryDto(
+    val anxietyLevel: AnxietyLevelDto,
+    val weeklyRecords: WeeklyRecordsDto,
+    val streakDays: Int,
+    val exercisesCompleted: Int,
+)
+
+@Serializable
+data class AnxietyLevelDto(
+    val current: Int,
+    val trend: String,
+)
+
+@Serializable
+data class WeeklyRecordsDto(
+    val used: Int,
+    val limit: Int? = null,
+)
+
+@Serializable
+data class EpisodeDto(
+    val id: String,
+    val date: String,
+    val intensity: Int,
+    val symptoms: List<String>,
+    val notes: String? = null,
+)
