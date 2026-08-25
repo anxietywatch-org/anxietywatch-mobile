@@ -37,9 +37,9 @@ class AuthInterceptor(private val tokenProvider: () -> String?) : Interceptor {
 }
 
 /**
- * El token dura 30 min. Cuando el backend responde 401, limpia la sesión guardada y avisa
- * a toda la app por [SessionExpiryNotifier] -- sin importar si la llamada la disparó una
- * pantalla abierta o el bridge del reloj en segundo plano.
+ * Cuando el backend responde 401, limpia la sesión guardada y avisa a toda la app por
+ * [SessionExpiryNotifier] -- sin importar si la llamada la disparó una pantalla abierta o
+ * el bridge del reloj en segundo plano.
  */
 class SessionExpiryInterceptor(
     private val onExpired: () -> Unit,
@@ -67,11 +67,12 @@ object ApiClient {
         val logging = HttpLoggingInterceptor().apply {
             // DevSecOps: los cuerpos de request/response traen el JWT y muestras
             // biométricas -- jamás deben quedar en el logcat de un build de producción.
-            // Solo BASIC (método + URL + código) fuera de debug.
-            level = if (BuildConfig.DEBUG) {
+            // Payload logging is opt-in because headers can contain the JWT and
+            // bodies contain health data.
+            level = if (BuildConfig.DEBUG && BuildConfig.ENABLE_VERBOSE_NETWORK_LOGGING) {
                 HttpLoggingInterceptor.Level.BODY
             } else {
-                HttpLoggingInterceptor.Level.BASIC
+                HttpLoggingInterceptor.Level.NONE
             }
         }
 
