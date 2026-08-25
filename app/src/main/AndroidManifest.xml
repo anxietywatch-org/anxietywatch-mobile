@@ -4,6 +4,12 @@
 
     <!-- === Permisos: primer y segundo plano (Estado E2 del documento atómico) === -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" /> <!-- API 33+ -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" /> <!-- API 33+ -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" /> <!-- API 33+ -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
@@ -29,18 +35,41 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Cámara y SMS son opcionales a nivel de hardware (ej. Chromebooks / tablets sin
+         telefonía); sin esto Play Store/lint asumen que ese hardware es obligatorio y
+         el lint PermissionImpliesUnsupportedChromeOsHardware falla el build. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+
     <application
         android:name=".AnxietyWatchApplication"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="AnxietyWatch"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/Theme.AnxietyWatchMobile"
         tools:targetApi="34">
+
+        <!-- WorkManager se inicializa a mano vía AnxietyWatchApplication (Configuration.Provider,
+             necesario para HiltWorkerFactory); hay que quitar el inicializador automático de
+             androidx.startup para evitar la doble inicialización que reporta el lint
+             RemoveWorkManagerInitializer. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.AnxietyWatchMobile">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -51,9 +80,16 @@
         <!-- EL PUENTE CON EL RELOJ. Google Play Services lo despierta automáticamente
              cuando llega un MessageEvent o DataEvent en las rutas /anxietywatch/*, incluso
              con la app completamente cerrada — no depende de que MainActivity esté viva. -->
+        <!-- TODO(seguridad/deuda técnica): BIND_LISTENER está deprecado por Google desde 2016
+             (recomiendan filtrar por path/prefix con listeners vía API en vez de recibir TODOS
+             los eventos de Wear). Sigue siendo funcional, ya probado con hardware real, pero
+             migrar a CapabilityClient/manifest listeners filtrados es un cambio de arquitectura
+             que requiere decisión explícita, no un fix automático de lint. Se suprime el check
+             a propósito mientras tanto. -->
         <service
             android:name=".data.bridge.PhoneDataLayerListenerService"
-            android:exported="true">
+            android:exported="true"
+            tools:ignore="WearableBindListener">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.BIND_LISTENER" />
             </intent-filter>

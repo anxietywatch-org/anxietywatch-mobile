@@ -1,0 +1,6 @@
+# Replace the placeholder with the responsible GitHub user or team.
+app/src/main/java/com/anxietywatch/mobile/data/remote/SecureTokenStore.kt @Gafass
+app/src/main/java/com/anxietywatch/mobile/data/remote/SessionRepository.kt @Gafass
+app/src/main/java/com/anxietywatch/mobile/data/remote/ApiClient.kt @Gafass
+app/src/main/AndroidManifest.xml @Gafass
+/.github/ @Gafass

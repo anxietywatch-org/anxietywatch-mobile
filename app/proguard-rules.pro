@@ -26,3 +26,10 @@
 # Room genera codigo en tiempo de compilacion; no necesita reglas extra normalmente,
 # pero se deja explicito por si el equipo agrega TypeConverters mas adelante.
 -keep class com.anxietywatch.mobile.data.local.** { *; }
+
+# Remove verbose/debug/info logging from minified release bytecode.
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}

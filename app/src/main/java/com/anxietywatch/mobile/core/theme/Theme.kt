@@ -2,9 +2,18 @@ package com.anxietywatch.mobile.core.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.dp
+
+private val AnxietyWatchShapes = Shapes(
+    small = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+    medium = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+    large = androidx.compose.foundation.shape.RoundedCornerShape(32.dp),
+    extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(40.dp),
+)
 
 private val LightColors = lightColorScheme(
     primary = md_theme_light_primary,
@@ -89,6 +98,7 @@ fun AnxietyWatchTheme(
     MaterialTheme(
         colorScheme = if (useDark) DarkColors else LightColors,
         typography = AnxietyWatchTypography,
+        shapes = AnxietyWatchShapes,
         content = content,
     )
 }

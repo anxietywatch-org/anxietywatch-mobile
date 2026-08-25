@@ -16,6 +16,11 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField(
+            "boolean",
+            "ENABLE_VERBOSE_NETWORK_LOGGING",
+            (providers.gradleProperty("enableVerboseNetworkLogging").orNull?.toBoolean() ?: false).toString(),
+        )
     }
 
     buildTypes {

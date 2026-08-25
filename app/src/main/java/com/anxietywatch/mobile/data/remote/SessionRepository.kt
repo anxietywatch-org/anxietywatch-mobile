@@ -1,5 +1,6 @@
 package com.anxietywatch.mobile.data.remote
 
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -8,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.time.Instant
+import java.time.format.DateTimeParseException
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -17,9 +19,8 @@ import javax.inject.Singleton
  * Keystore) -- NUNCA en este DataStore normal. Aqui solo va lo que no es sensible por si
  * mismo: el rol (self/family_member/patient) y el deviceId local del telefono.
  *
- * El token dura 30 minutos (confirmado por el equipo de backend) -- por eso [isExpired]
- * existe: cualquier parte de la app puede chequear proactivamente antes de llamar a la
- * API, en vez de esperar a que llegue un 401.
+ * El backend actual emite JWT con siete días de vigencia. [isExpired] conserva la
+ * comprobación proactiva para evitar usar una sesión vencida y no prolonga el token localmente.
  */
 @Singleton
 class SessionRepository @Inject constructor(
@@ -45,10 +46,15 @@ class SessionRepository @Inject constructor(
         dataStore.edit { it.remove(roleKey) }
     }
 
-    /** true si no hay sesión, o si el token de 30 min ya venció. */
+    /** true si no hay sesión, si expiresAt no se puede interpretar o si ya venció. */
     fun isExpired(): Boolean {
         val expiresAtRaw = secureTokenStore.getExpiresAt() ?: return true
-        val expiresAt = runCatching { Instant.parse(expiresAtRaw) }.getOrNull() ?: return true
+        val expiresAt = try {
+            Instant.parse(expiresAtRaw)
+        } catch (exception: DateTimeParseException) {
+            Log.w(TAG, "No se pudo interpretar expiresAt persistido: $expiresAtRaw", exception)
+            return true
+        }
         return Instant.now().isAfter(expiresAt)
     }
 
@@ -64,5 +70,9 @@ class SessionRepository @Inject constructor(
         val generated = UUID.randomUUID().toString()
         dataStore.edit { it[deviceIdKey] = generated }
         return generated
+    }
+
+    private companion object {
+        const val TAG = "SessionRepository"
     }
 }

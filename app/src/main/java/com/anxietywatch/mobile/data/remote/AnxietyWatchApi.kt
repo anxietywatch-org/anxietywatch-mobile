@@ -2,7 +2,9 @@ package com.anxietywatch.mobile.data.remote
 
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.Query
 
 /**
  * Cliente de https://api.mangoon.xyz -- contrato confirmado en produccion por el equipo
@@ -28,6 +30,15 @@ interface AnxietyWatchApi {
     @POST("api/v1/sos/trigger")
     suspend fun triggerSos(@Body request: TriggerSosRequest): SosTriggerResponse
 
+    @POST("api/v1/sos/cancel")
+    suspend fun cancelSos(@Body request: SosCancelRequest): SosCancelResponse
+
+    @POST("api/v1/events/suspected")
+    suspend fun submitSuspectedEvent(@Body request: SuspectedEventRequest): WearableEventResponse
+
+    @POST("api/v1/events/decision")
+    suspend fun submitEventDecision(@Body request: EventDecisionRequest): WearableEventResponse
+
     // --- Tokens de vinculacion ---
     @GET("api/tokens")
     suspend fun listTokens(): List<TokenResponseDto>
@@ -43,6 +54,16 @@ interface AnxietyWatchApi {
     @POST("api/tokens/accept-by-code")
     suspend fun acceptByCode(@Body request: AcceptByCodeRequest): TokenRedeemResponseDto
 
-    // TODO fase siguiente: dashboard/summary, episodes, profile, settings -- ya viven en
-    // produccion, se agregan aqui cuando construyamos esas pantallas.
+    // --- Perfil, dashboard y episodios (contrato confirmado en backend) ---
+    @GET("api/profile")
+    suspend fun getProfile(): ProfileResponseDto
+
+    @PATCH("api/profile")
+    suspend fun updateProfile(@Body request: ProfileUpdateRequest): ProfileResponseDto
+
+    @GET("api/dashboard/summary")
+    suspend fun getDashboardSummary(): DashboardSummaryDto
+
+    @GET("api/episodes")
+    suspend fun getEpisodes(@Query("range") range: Int = 7): List<EpisodeDto>
 }

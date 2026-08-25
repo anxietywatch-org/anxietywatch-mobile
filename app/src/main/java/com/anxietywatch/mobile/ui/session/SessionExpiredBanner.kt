@@ -15,7 +15,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 /**
- * Se muestra un instante arriba de TokenEntryScreen cuando el token de 30 min vence --
+ * Se muestra un instante arriba de TokenEntryScreen cuando el token vence --
  * para que la persona entienda POR QUÉ la mandamos de vuelta al inicio, en vez de que
  * parezca que la app se cerró sola sin explicación.
  */
@@ -33,7 +33,7 @@ fun SessionExpiredMessage() {
             color = MaterialTheme.colorScheme.error,
         )
         Text(
-            text = "Por seguridad, los códigos duran 30 minutos. Pide uno nuevo a quien te lo compartió.",
+            text = "Por seguridad, tu sesión ya no es válida. Pide un código nuevo a quien te lo compartió.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

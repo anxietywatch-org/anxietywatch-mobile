@@ -13,3 +13,14 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Secrets and local environment
+.env
+.env.*
+*.jks
+*.keystore
+
+# Build artifacts and diagnostics
+*.apk
+*.aab
+*.hprof

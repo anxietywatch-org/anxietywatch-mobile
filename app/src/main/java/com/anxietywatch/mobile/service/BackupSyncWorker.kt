@@ -10,7 +10,10 @@ import com.anxietywatch.mobile.data.local.AppDatabase
 import com.anxietywatch.mobile.data.local.SyncStatus
 import com.anxietywatch.mobile.data.remote.AnxietyWatchApi
 import com.anxietywatch.mobile.data.remote.CreateTelemetryBatchRequest
+import com.anxietywatch.mobile.data.remote.EventDecisionRequest
 import com.anxietywatch.mobile.data.remote.SessionRepository
+import com.anxietywatch.mobile.data.remote.SosCancelRequest
+import com.anxietywatch.mobile.data.remote.SuspectedEventRequest
 import com.anxietywatch.mobile.data.remote.TriggerSosRequest
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -51,6 +54,17 @@ class BackupSyncWorker @AssistedInject constructor(
             }
         }
 
+        dao.getSosCancelEventsByStatus(SyncStatus.PENDING).forEach { pending ->
+            runCatching {
+                val request = json.decodeFromString<SosCancelRequest>(pending.requestJson)
+                api.cancelSos(request)
+            }.onSuccess {
+                dao.updateSosCancelEventStatus(pending.eventId, SyncStatus.SYNCED)
+            }.onFailure {
+                dao.incrementSosCancelAttempt(pending.eventId)
+            }
+        }
+
         dao.getTelemetryBatchesByStatus(SyncStatus.PENDING).forEach { pending ->
             runCatching {
                 val request = json.decodeFromString<CreateTelemetryBatchRequest>(pending.requestJson)
@@ -59,6 +73,28 @@ class BackupSyncWorker @AssistedInject constructor(
                 dao.updateTelemetryBatchStatus(pending.batchId, SyncStatus.SYNCED)
             }.onFailure {
                 dao.incrementTelemetryAttempt(pending.batchId)
+            }
+        }
+
+        dao.getSuspectedEventsByStatus(SyncStatus.PENDING).forEach { pending ->
+            runCatching {
+                val request = json.decodeFromString<SuspectedEventRequest>(pending.requestJson)
+                api.submitSuspectedEvent(request)
+            }.onSuccess {
+                dao.updateSuspectedEventStatus(pending.eventId, SyncStatus.SYNCED)
+            }.onFailure {
+                dao.incrementSuspectedAttempt(pending.eventId)
+            }
+        }
+
+        dao.getEventDecisionsByStatus(SyncStatus.PENDING).forEach { pending ->
+            runCatching {
+                val request = json.decodeFromString<EventDecisionRequest>(pending.requestJson)
+                api.submitEventDecision(request)
+            }.onSuccess {
+                dao.updateEventDecisionStatus(pending.eventId, SyncStatus.SYNCED)
+            }.onFailure {
+                dao.incrementEventDecisionAttempt(pending.eventId)
             }
         }
 
