@@ -232,7 +232,7 @@ class PhoneDataLayerListenerService : WearableListenerService() {
         }
 
         if (samplesByTimestamp.isEmpty()) {
-            sendTelemetryAck(sourceNodeId, batchId)
+            Log.w(TAG, "Se descartó un lote de telemetría vacío sin enviar ACK")
             return
         }
 
