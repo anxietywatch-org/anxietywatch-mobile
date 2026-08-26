@@ -33,6 +33,14 @@ class NavigationRoutingTest {
     }
 
     @Test
+    fun caregiverPatientClickUsesStablePatientId() {
+        assertEquals(
+            "patient_detail/patient-alex",
+            Routes.PatientDetail.build("patient-alex"),
+        )
+    }
+
+    @Test
     fun patientLogoutDestinationIsTokenEntry() {
         assertEquals("token_entry", Routes.TokenEntry.route)
     }
