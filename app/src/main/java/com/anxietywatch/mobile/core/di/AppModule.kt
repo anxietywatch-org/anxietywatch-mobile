@@ -5,6 +5,12 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import com.anxietywatch.mobile.data.local.AppDatabase
+import com.anxietywatch.mobile.data.bridge.DataLayerWearAckSender
+import com.anxietywatch.mobile.data.bridge.WearAckSender
+import com.anxietywatch.mobile.data.bridge.CurrentWearablePairing
+import com.anxietywatch.mobile.data.bridge.MonitoringSessionContext
+import com.anxietywatch.mobile.data.local.FrontendPreferences
+import com.anxietywatch.mobile.data.local.FrontendPreferencesStore
 import com.anxietywatch.mobile.data.remote.AnxietyWatchApi
 import com.anxietywatch.mobile.data.remote.ApiClient
 import com.anxietywatch.mobile.data.remote.SessionExpiryNotifier
@@ -36,4 +42,12 @@ object AppModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase = AppDatabase.build(context)
+
+    @Provides
+    @Singleton
+    fun provideWearAckSender(sender: DataLayerWearAckSender): WearAckSender = sender
+
+    @Provides
+    @Singleton
+    fun provideCurrentWearablePairing(context: MonitoringSessionContext): CurrentWearablePairing = context
 }

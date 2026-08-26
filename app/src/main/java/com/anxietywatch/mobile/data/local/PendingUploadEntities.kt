@@ -18,8 +18,11 @@ data class PendingTelemetryBatchEntity(
     @PrimaryKey val batchId: String,
     val requestJson: String,
     val createdAtMillis: Long,
-    val syncStatus: String = SyncStatus.PENDING,
+    val syncStatus: String = SyncStatus.PENDING_HTTP,
     val attemptCount: Int = 0,
+    val wearableDeviceId: String = "",
+    val sourceNodeId: String = "",
+    val lastError: String? = null,
 )
 
 /** Igual que la de telemetria, pero para eventos de crisis -- estos son mas criticos
@@ -29,8 +32,11 @@ data class PendingSosEventEntity(
     @PrimaryKey val eventId: String,
     val requestJson: String,
     val createdAtMillis: Long,
-    val syncStatus: String = SyncStatus.PENDING,
+    val syncStatus: String = SyncStatus.PENDING_HTTP,
     val attemptCount: Int = 0,
+    val wearableDeviceId: String = "",
+    val sourceNodeId: String = "",
+    val lastError: String? = null,
 )
 
 @Entity(tableName = "pending_sos_cancel_events")
@@ -38,8 +44,11 @@ data class PendingSosCancelEventEntity(
     @PrimaryKey val eventId: String,
     val requestJson: String,
     val createdAtMillis: Long,
-    val syncStatus: String = SyncStatus.PENDING,
+    val syncStatus: String = SyncStatus.PENDING_HTTP,
     val attemptCount: Int = 0,
+    val wearableDeviceId: String = "",
+    val sourceNodeId: String = "",
+    val lastError: String? = null,
 )
 
 @Entity(tableName = "pending_suspected_events")
@@ -47,8 +56,11 @@ data class PendingSuspectedEventEntity(
     @PrimaryKey val eventId: String,
     val requestJson: String,
     val createdAtMillis: Long,
-    val syncStatus: String = SyncStatus.PENDING,
+    val syncStatus: String = SyncStatus.PENDING_HTTP,
     val attemptCount: Int = 0,
+    val wearableDeviceId: String = "",
+    val sourceNodeId: String = "",
+    val lastError: String? = null,
 )
 
 @Entity(tableName = "pending_event_decisions")
@@ -56,11 +68,20 @@ data class PendingEventDecisionEntity(
     @PrimaryKey val eventId: String,
     val requestJson: String,
     val createdAtMillis: Long,
-    val syncStatus: String = SyncStatus.PENDING,
+    val syncStatus: String = SyncStatus.PENDING_HTTP,
     val attemptCount: Int = 0,
+    val wearableDeviceId: String = "",
+    val sourceNodeId: String = "",
+    val lastError: String? = null,
 )
 
 object SyncStatus {
-    const val PENDING = "PENDING"
-    const val SYNCED = "SYNCED"
+    const val PENDING_HTTP = "PENDING_HTTP"
+    const val BACKEND_DELIVERED_ACK_PENDING = "BACKEND_DELIVERED_ACK_PENDING"
+    const val DELIVERED = "DELIVERED"
+    const val TERMINAL_FAILED = "TERMINAL_FAILED"
+
+    // Kept only for decoding old callers while the Room migration normalizes rows.
+    const val PENDING = PENDING_HTTP
+    const val SYNCED = DELIVERED
 }
