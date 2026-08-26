@@ -26,6 +26,9 @@ import com.anxietywatch.mobile.ui.common.LoadingState
 import com.anxietywatch.mobile.ui.common.ScreenScaffold
 import com.anxietywatch.mobile.ui.common.SectionHeader
 import com.anxietywatch.mobile.ui.common.StatusBadge
+import com.anxietywatch.mobile.ui.caregiver.CaregiverBottomBar
+import com.anxietywatch.mobile.ui.caregiver.CaregiverDestination
+import com.anxietywatch.mobile.ui.caregiver.CaregiverTopBar
 
 @Composable
 fun CaregiverProfileScreen(
@@ -35,42 +38,46 @@ fun CaregiverProfileScreen(
     state: CaregiverProfileUiState? = null,
     onRetry: (() -> Unit)? = null,
     onLogout: (() -> Unit)? = null,
+    onNavigate: (CaregiverDestination) -> Unit = {},
 ) {
     val resolved = viewModel ?: if (state == null) hiltViewModel() else null
     val collected by resolved?.uiState?.collectAsState()
         ?: remember { mutableStateOf(state!!) }
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    ScreenScaffold {
-        when (val current = collected) {
-            CaregiverProfileUiState.Loading -> LoadingState("Cargando perfil...")
-            is CaregiverProfileUiState.Error -> ErrorState(current.message, onRetry ?: resolved?.let { it::retry })
-            is CaregiverProfileUiState.Content -> {
-                ProfileContent(
-                    profile = current.data,
-                    isLoggingOut = current.isLoggingOut,
-                    logoutError = current.logoutError,
-                    onBack = onBack,
-                    onLogout = { showLogoutDialog = true },
-                )
-                if (showLogoutDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showLogoutDialog = false },
-                        title = { Text("¿Quieres desvincular este dispositivo?") },
-                        text = { Text("Se cerrará la sesión de cuidador en este dispositivo.") },
-                        dismissButton = { TextButton(onClick = { showLogoutDialog = false }) { Text("Cancelar") } },
-                        confirmButton = {
-                            TextButton(
-                                onClick = {
-                                    showLogoutDialog = false
-                                    (onLogout ?: { resolved?.logout(onLogoutSuccess) })()
-                                },
-                            ) { Text("Desvincular") }
-                        },
+    Column(Modifier.fillMaxSize()) {
+        CaregiverTopBar("Perfil", onBack = onBack)
+        ScreenScaffold(modifier = Modifier.weight(1f)) {
+            when (val current = collected) {
+                CaregiverProfileUiState.Loading -> LoadingState("Cargando perfil...")
+                is CaregiverProfileUiState.Error -> ErrorState(current.message, onRetry ?: resolved?.let { it::retry })
+                is CaregiverProfileUiState.Content -> {
+                    ProfileContent(
+                        profile = current.data,
+                        isLoggingOut = current.isLoggingOut,
+                        logoutError = current.logoutError,
+                        onLogout = { showLogoutDialog = true },
                     )
+                    if (showLogoutDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showLogoutDialog = false },
+                            title = { Text("¿Quieres desvincular este dispositivo?") },
+                            text = { Text("Se cerrará la sesión de cuidador en este dispositivo.") },
+                            dismissButton = { TextButton(onClick = { showLogoutDialog = false }) { Text("Cancelar") } },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        showLogoutDialog = false
+                                        (onLogout ?: { resolved?.logout(onLogoutSuccess) })()
+                                    },
+                                ) { Text("Desvincular") }
+                            },
+                        )
+                    }
                 }
             }
         }
+        CaregiverBottomBar(CaregiverDestination.Profile, onNavigate)
     }
 }
 
@@ -79,7 +86,6 @@ private fun ProfileContent(
     profile: CaregiverProfileUiModel,
     isLoggingOut: Boolean,
     logoutError: String?,
-    onBack: () -> Unit,
     onLogout: () -> Unit,
 ) {
     Column(
@@ -89,7 +95,6 @@ private fun ProfileContent(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        TextButton(onClick = onBack) { Text("Volver al dashboard") }
         SectionHeader("CUIDADOR", "Perfil", "Información disponible en la sesión actual.")
         StatusBadge("Cuidador")
         ProfileRow("Nombre", profile.displayName ?: "Información no disponible")

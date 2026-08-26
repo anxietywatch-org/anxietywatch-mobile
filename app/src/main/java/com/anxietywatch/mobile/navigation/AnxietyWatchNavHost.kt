@@ -167,6 +167,14 @@ fun AnxietyWatchNavHost(
                 onViewAllPatientsClick = { navController.navigate(Routes.CaregiverPatients.route) },
                 onViewAlertsClick = { navController.navigate(Routes.CaregiverAlerts.route) },
                 onViewProfileClick = { navController.navigate(Routes.CaregiverProfile.route) },
+                onNavigate = { destination ->
+                    when (destination) {
+                        com.anxietywatch.mobile.ui.caregiver.CaregiverDestination.Home -> navController.navigate(Routes.DashboardCaregiver.route)
+                        com.anxietywatch.mobile.ui.caregiver.CaregiverDestination.Patients -> navController.navigate(Routes.CaregiverPatients.route)
+                        com.anxietywatch.mobile.ui.caregiver.CaregiverDestination.Alerts -> navController.navigate(Routes.CaregiverAlerts.route)
+                        com.anxietywatch.mobile.ui.caregiver.CaregiverDestination.Profile -> navController.navigate(Routes.CaregiverProfile.route)
+                    }
+                },
             )
         }
         composable(Routes.CaregiverPatients.route) {
@@ -174,12 +182,28 @@ fun AnxietyWatchNavHost(
                 onPatientClick = { patientId ->
                     navController.navigate(Routes.PatientDetail.build(patientId))
                 },
+                onNavigate = { destination ->
+                    when (destination) {
+                        com.anxietywatch.mobile.ui.caregiver.CaregiverDestination.Home -> navController.navigate(Routes.DashboardCaregiver.route)
+                        com.anxietywatch.mobile.ui.caregiver.CaregiverDestination.Patients -> Unit
+                        com.anxietywatch.mobile.ui.caregiver.CaregiverDestination.Alerts -> navController.navigate(Routes.CaregiverAlerts.route)
+                        com.anxietywatch.mobile.ui.caregiver.CaregiverDestination.Profile -> navController.navigate(Routes.CaregiverProfile.route)
+                    }
+                },
             )
         }
         composable(Routes.CaregiverAlerts.route) {
             CaregiverAlertsScreen(
                 onBack = { navController.popBackStack() },
                 onAlertClick = { alertId -> navController.navigate(Routes.CaregiverAlertDetail.build(alertId)) },
+                onNavigate = { destination ->
+                    when (destination) {
+                        com.anxietywatch.mobile.ui.caregiver.CaregiverDestination.Home -> navController.navigate(Routes.DashboardCaregiver.route)
+                        com.anxietywatch.mobile.ui.caregiver.CaregiverDestination.Patients -> navController.navigate(Routes.CaregiverPatients.route)
+                        com.anxietywatch.mobile.ui.caregiver.CaregiverDestination.Alerts -> Unit
+                        com.anxietywatch.mobile.ui.caregiver.CaregiverDestination.Profile -> navController.navigate(Routes.CaregiverProfile.route)
+                    }
+                },
             )
         }
         composable(Routes.CaregiverAlertDetail.route) { backStackEntry ->
@@ -195,6 +219,14 @@ fun AnxietyWatchNavHost(
                     MonitoringForegroundService.stop(context)
                     navController.navigate(Routes.TokenEntry.route) {
                         popUpTo(0) { inclusive = true }
+                    }
+                },
+                onNavigate = { destination ->
+                    when (destination) {
+                        com.anxietywatch.mobile.ui.caregiver.CaregiverDestination.Home -> navController.navigate(Routes.DashboardCaregiver.route)
+                        com.anxietywatch.mobile.ui.caregiver.CaregiverDestination.Patients -> navController.navigate(Routes.CaregiverPatients.route)
+                        com.anxietywatch.mobile.ui.caregiver.CaregiverDestination.Alerts -> navController.navigate(Routes.CaregiverAlerts.route)
+                        com.anxietywatch.mobile.ui.caregiver.CaregiverDestination.Profile -> Unit
                     }
                 },
             )
