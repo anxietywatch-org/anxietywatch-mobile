@@ -159,6 +159,8 @@ fun PatientRow(
     status: String,
     heartRate: Int?,
     lastSync: String,
+    anxietyLabel: String? = null,
+    showMissingHeartRatePlaceholder: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -175,10 +177,17 @@ fun PatientRow(
                 Text(name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 StatusBadge(label = status)
             }
-            Text(
-                heartRate?.let { "$it BPM" } ?: "Sin lectura de BPM",
-                style = MaterialTheme.typography.headlineSmall,
-            )
+            heartRate?.let {
+                Text("$it BPM", style = MaterialTheme.typography.headlineSmall)
+            } ?: if (showMissingHeartRatePlaceholder) {
+                Column {
+                    Text("--", style = MaterialTheme.typography.headlineSmall)
+                    Text("Sin lectura", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
+                Text("Sin lectura de BPM", style = MaterialTheme.typography.headlineSmall)
+            }
+            anxietyLabel?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             DataFreshnessLabel(lastSync)
         }
     }

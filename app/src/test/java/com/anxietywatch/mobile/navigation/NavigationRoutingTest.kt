@@ -1,6 +1,7 @@
 package com.anxietywatch.mobile.navigation
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 class NavigationRoutingTest {
@@ -34,10 +35,12 @@ class NavigationRoutingTest {
 
     @Test
     fun caregiverPatientClickUsesStablePatientId() {
-        assertEquals(
-            "patient_detail/patient-alex",
-            Routes.PatientDetail.build("patient-alex"),
-        )
+        val alexRoute = Routes.PatientDetail.build("patient-alex")
+        val sofiaRoute = Routes.PatientDetail.build("patient-sofia")
+
+        assertEquals("patient_detail/patient-alex", alexRoute)
+        assertEquals("patient_detail/patient-sofia", sofiaRoute)
+        assertNotEquals(alexRoute, sofiaRoute)
     }
 
     @Test

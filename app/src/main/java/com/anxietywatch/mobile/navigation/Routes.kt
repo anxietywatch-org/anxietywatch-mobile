@@ -14,6 +14,7 @@ sealed class Routes(val route: String) {
     data object WatchPairing : Routes("watch_pairing")
     data object ManageWatch : Routes("manage_watch")
     data object DashboardCaregiver : Routes("dashboard_caregiver") // E14
+    data object CaregiverPatients : Routes("caregiver_patients")
     data object PatientDetail : Routes("patient_detail/{patientId}") { // E16
         fun build(patientId: String) = "patient_detail/$patientId"
     }

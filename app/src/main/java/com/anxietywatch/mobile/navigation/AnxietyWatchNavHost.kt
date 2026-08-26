@@ -26,6 +26,7 @@ import com.anxietywatch.mobile.data.remote.SessionExpiryNotifier
 import com.anxietywatch.mobile.data.remote.SessionRepository
 import com.anxietywatch.mobile.service.MonitoringForegroundService
 import com.anxietywatch.mobile.ui.dashboard.DashboardCaregiverScreen
+import com.anxietywatch.mobile.ui.dashboard.CaregiverPatientsScreen
 import com.anxietywatch.mobile.ui.alerts.CriticalAlertScreen
 import com.anxietywatch.mobile.ui.crisis.CrisisActiveScreen
 import com.anxietywatch.mobile.ui.events.EventDetailScreen
@@ -158,6 +159,14 @@ fun AnxietyWatchNavHost(
         }
         composable(Routes.DashboardCaregiver.route) {
             DashboardCaregiverScreen(
+                onPatientClick = { patientId ->
+                    navController.navigate(Routes.PatientDetail.build(patientId))
+                },
+                onViewAllPatientsClick = { navController.navigate(Routes.CaregiverPatients.route) },
+            )
+        }
+        composable(Routes.CaregiverPatients.route) {
+            CaregiverPatientsScreen(
                 onPatientClick = { patientId ->
                     navController.navigate(Routes.PatientDetail.build(patientId))
                 },

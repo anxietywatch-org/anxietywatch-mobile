@@ -1,18 +1,13 @@
 package com.anxietywatch.mobile.ui.dashboard
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -23,60 +18,62 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.anxietywatch.mobile.ui.common.EmptyState
 import com.anxietywatch.mobile.ui.common.ErrorState
 import com.anxietywatch.mobile.ui.common.LoadingState
-import com.anxietywatch.mobile.ui.common.MetricCard
 import com.anxietywatch.mobile.ui.common.PatientRow
+import com.anxietywatch.mobile.ui.common.ScreenScaffold
 import com.anxietywatch.mobile.ui.common.SectionHeader
 
 @Composable
-fun DashboardCaregiverScreen(
+fun CaregiverPatientsScreen(
     viewModel: DashboardCaregiverViewModel? = null,
     onPatientClick: (String) -> Unit = {},
-    onViewAllPatientsClick: () -> Unit = {},
     state: DashboardCaregiverUiState? = null,
+    onRetry: (() -> Unit)? = null,
+    onRefresh: (() -> Unit)? = null,
 ) {
     if (state != null) {
-        DashboardCaregiverStateContent(state, {}, {}, onPatientClick, onViewAllPatientsClick)
+        CaregiverPatientsStateContent(
+            state = state,
+            onRetry = onRetry ?: {},
+            onRefresh = onRefresh ?: {},
+            onPatientClick = onPatientClick,
+        )
     } else {
         val resolvedViewModel = viewModel ?: hiltViewModel<DashboardCaregiverViewModel>()
         val collectedState by resolvedViewModel.uiState.collectAsState()
-        DashboardCaregiverStateContent(
+        CaregiverPatientsStateContent(
             state = collectedState,
             onRetry = resolvedViewModel::retry,
             onRefresh = resolvedViewModel::refresh,
             onPatientClick = onPatientClick,
-            onViewAllPatientsClick = onViewAllPatientsClick,
         )
     }
 }
 
 @Composable
-private fun DashboardCaregiverStateContent(
+private fun CaregiverPatientsStateContent(
     state: DashboardCaregiverUiState,
     onRetry: () -> Unit,
     onRefresh: () -> Unit,
     onPatientClick: (String) -> Unit,
-    onViewAllPatientsClick: () -> Unit,
 ) {
-    when (state) {
-        DashboardCaregiverUiState.Loading -> LoadingState("Cargando pacientes...")
-        is DashboardCaregiverUiState.Error -> ErrorState(state.message, onRetry)
-        is DashboardCaregiverUiState.Empty -> DashboardEmptyState(state, onRefresh)
-        is DashboardCaregiverUiState.Content -> DashboardContent(state, onRefresh, onPatientClick, onViewAllPatientsClick)
+    ScreenScaffold {
+        when (state) {
+            DashboardCaregiverUiState.Loading -> LoadingState("Cargando pacientes...")
+            is DashboardCaregiverUiState.Error -> ErrorState(state.message, onRetry)
+            is DashboardCaregiverUiState.Empty -> PatientsEmptyState(state, onRefresh)
+            is DashboardCaregiverUiState.Content -> PatientsContent(state, onRefresh, onPatientClick)
+        }
     }
 }
 
 @Composable
-private fun DashboardEmptyState(
+private fun PatientsEmptyState(
     state: DashboardCaregiverUiState.Empty,
     onRefresh: () -> Unit,
 ) {
     PullToRefreshBox(isRefreshing = state.isRefreshing, onRefresh = onRefresh) {
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
-            SectionHeader(
-                eyebrow = "CUIDADOR",
-                title = "Panel de pacientes",
-                description = "Pacientes vinculados a tu cuenta",
-            )
+            PatientsHeader()
             state.refreshError?.let { ErrorState(it, onRefresh) }
             EmptyState(
                 title = "No hay pacientes vinculados.",
@@ -87,29 +84,25 @@ private fun DashboardEmptyState(
 }
 
 @Composable
-private fun DashboardContent(
+private fun PatientsContent(
     state: DashboardCaregiverUiState.Content,
     onRefresh: () -> Unit,
     onPatientClick: (String) -> Unit,
-    onViewAllPatientsClick: () -> Unit,
 ) {
     PullToRefreshBox(isRefreshing = state.isRefreshing, onRefresh = onRefresh) {
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
-            SectionHeader(
-                eyebrow = "CUIDADOR",
-                title = "Panel de pacientes",
-                description = "Pacientes vinculados a tu cuenta",
-            )
+            PatientsHeader()
             state.refreshError?.let { ErrorState(it, onRefresh) }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricCard("Pacientes vinculados", state.data.patients.size.toString(), modifier = Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(20.dp))
-            Text("Pacientes recientes", style = MaterialTheme.typography.titleMedium)
-            TextButton(onClick = onViewAllPatientsClick) { Text("Ver todos") }
-            Spacer(Modifier.height(8.dp))
             state.data.patients.forEach { patient ->
-                CaregiverPatientRow(patient, onPatientClick)
+                PatientRow(
+                    name = patient.displayName,
+                    status = patient.statusLabel(),
+                    heartRate = patient.bpm,
+                    lastSync = patient.lastUpdated ?: "Sin actualización",
+                    anxietyLabel = patient.anxiety?.let { "Ansiedad: $it" } ?: "Sin estado disponible",
+                    showMissingHeartRatePlaceholder = true,
+                    onClick = { onPatientClick(patient.id) },
+                )
                 Spacer(Modifier.height(12.dp))
             }
         }
@@ -117,20 +110,17 @@ private fun DashboardContent(
 }
 
 @Composable
-private fun CaregiverPatientRow(
-    patient: CaregiverPatientUiModel,
-    onPatientClick: (String) -> Unit,
-) {
-    PatientRow(
-        name = patient.displayName,
-        status = patient.alertState ?: patient.connectivityLabel(),
-        heartRate = patient.bpm,
-        lastSync = patient.lastUpdated ?: "Sin actualización",
-        onClick = { onPatientClick(patient.id) },
+private fun PatientsHeader() {
+    SectionHeader(
+        eyebrow = "CUIDADOR",
+        title = "Pacientes",
+        description = "Personas vinculadas a tu cuenta",
     )
+    Text("Lista de pacientes", modifier = Modifier.padding(bottom = 8.dp))
 }
 
-private fun CaregiverPatientUiModel.connectivityLabel(): String = when {
+private fun CaregiverPatientUiModel.statusLabel(): String = when {
+    alertState != null -> alertState
     connectivity != null -> when (connectivity) {
         com.anxietywatch.mobile.ui.common.ConnectivityStatus.ConnectedRecent -> "Conectado · reciente"
         com.anxietywatch.mobile.ui.common.ConnectivityStatus.ConnectedStale -> "Conectado · antiguo"
