@@ -277,8 +277,8 @@ data class CaregiverPatientDto(
     val patientId: String,
     val fullName: String,
     val avatarUrl: String? = null,
-    val role: String,
-    val linkedAt: String,
+    val role: String? = null,
+    val linkedAt: String? = null,
 )
 
 @Serializable
@@ -292,24 +292,28 @@ data class CaregiverPatientDetailDto(
 data class CaregiverEpisodeDto(
     val id: String,
     val date: String,
-    val intensity: Int,
+    val intensity: Int? = null,
     val symptoms: List<String> = emptyList(),
     val notes: String? = null,
+    val detailsHidden: Boolean? = null,
 )
 
 @Serializable
 data class CaregiverTelemetryLatestDto(
-    val timestamp: String,
+    val measuredAt: String,
     val heartRateBpm: Double? = null,
+    val ageSeconds: Int? = null,
+    val quality: String? = null,
 )
 
 @Serializable
 data class CaregiverEventDto(
     val eventId: String,
-    val title: String,
+    val title: String? = null,
     val description: String? = null,
     val occurredAt: String? = null,
     val type: String? = null,
+    val status: String? = null,
     val category: String? = null,
     val summary: String? = null,
     val metrics: List<CaregiverEventMetricDto> = emptyList(),

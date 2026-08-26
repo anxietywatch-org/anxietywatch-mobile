@@ -77,7 +77,7 @@ class PatientDetailViewModel @Inject constructor(
                     ?.let { bpm ->
                         listOf(
                             HeartRateSampleUiModel(
-                                label = formatTimestamp(telemetry.timestamp),
+                                label = formatTimestamp(telemetry.measuredAt),
                                 beatsPerMinute = bpm.roundToInt(),
                             ),
                         )
@@ -118,7 +118,10 @@ class PatientDetailViewModel @Inject constructor(
 
     private fun mapEvent(event: CaregiverEventDto) = WellnessEventUiModel(
         id = event.eventId,
-        title = event.title,
+        title = event.title?.takeIf { it.isNotBlank() }
+            ?: event.type?.takeIf { it.isNotBlank() }
+            ?: event.status?.takeIf { it.isNotBlank() }
+            ?: "Evento",
         description = event.description,
         time = event.occurredAt?.let(::formatTimestamp),
         type = when (event.type?.lowercase()) {

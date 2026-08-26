@@ -71,7 +71,10 @@ class EventDetailViewModel @Inject constructor(
     }
 
     private fun CaregiverEventDto.toUiModel() = EventDetailUiModel(
-        title = title,
+        title = title?.takeIf { it.isNotBlank() }
+            ?: type?.takeIf { it.isNotBlank() }
+            ?: status?.takeIf { it.isNotBlank() }
+            ?: "Evento",
         category = category,
         occurredAt = occurredAt?.let(::formatTimestamp),
         summary = summary ?: description,
