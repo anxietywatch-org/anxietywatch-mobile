@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.anxietywatch.mobile.data.remote.isValidWearableDeviceId
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import java.util.UUID
@@ -32,9 +33,9 @@ class MonitoringSessionContext @Inject constructor(
         dataStore.edit { it[deviceIdKey] = deviceId }
     }
 
-    fun pairedDeviceId(): String = runBlocking {
-        dataStore.data.first()[deviceIdKey] ?: DEFAULT_DEVICE_ID
-    }
+    fun pairedDeviceId(): String? = runBlocking {
+        dataStore.data.first()[deviceIdKey]
+    }.takeIf(::isValidWearableDeviceId)
 
     /**
      * Una "sesión de monitoreo" agrupa lotes de telemetría entre aperturas de la app/servicio.
@@ -81,7 +82,6 @@ class MonitoringSessionContext @Inject constructor(
     }
 
     private companion object {
-        const val DEFAULT_DEVICE_ID = "00000000-0000-0000-0000-000000000000"
         const val ONE_DAY_MILLIS = 24 * 60 * 60 * 1000L
     }
 }

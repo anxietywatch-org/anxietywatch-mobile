@@ -16,6 +16,7 @@ import com.anxietywatch.mobile.data.remote.SosCancelRequest
 import com.anxietywatch.mobile.data.remote.SuspectedEventRequest
 import com.anxietywatch.mobile.data.remote.TriggerSosRequest
 import com.anxietywatch.mobile.data.remote.isWearableSubmissionDelivered
+import com.anxietywatch.mobile.data.remote.isValidWearableDeviceId
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
@@ -47,6 +48,7 @@ class BackupSyncWorker @AssistedInject constructor(
         dao.getSosEventsByStatus(SyncStatus.PENDING).forEach { pending ->
             runCatching {
                 val request = json.decodeFromString<TriggerSosRequest>(pending.requestJson)
+                check(isValidWearableDeviceId(request.deviceId)) { "MISSING_PAIRED_DEVICE_ID" }
                 api.triggerSos(request)
             }.onSuccess { response ->
                 if (isWearableSubmissionDelivered(pending.eventId, response.eventId, response.accepted, response.duplicate)) {
@@ -62,6 +64,7 @@ class BackupSyncWorker @AssistedInject constructor(
         dao.getSosCancelEventsByStatus(SyncStatus.PENDING).forEach { pending ->
             runCatching {
                 val request = json.decodeFromString<SosCancelRequest>(pending.requestJson)
+                check(isValidWearableDeviceId(request.deviceId)) { "MISSING_PAIRED_DEVICE_ID" }
                 api.cancelSos(request)
             }.onSuccess { response ->
                 if (isWearableSubmissionDelivered(pending.eventId, response.eventId, response.accepted, response.duplicate)) {
@@ -77,6 +80,7 @@ class BackupSyncWorker @AssistedInject constructor(
         dao.getTelemetryBatchesByStatus(SyncStatus.PENDING).forEach { pending ->
             runCatching {
                 val request = json.decodeFromString<CreateTelemetryBatchRequest>(pending.requestJson)
+                check(isValidWearableDeviceId(request.deviceId)) { "MISSING_PAIRED_DEVICE_ID" }
                 api.sendTelemetryBatch(request)
             }.onSuccess { response ->
                 if (isWearableSubmissionDelivered(pending.batchId, response.batchId, response.accepted, response.duplicate)) {
@@ -92,6 +96,7 @@ class BackupSyncWorker @AssistedInject constructor(
         dao.getSuspectedEventsByStatus(SyncStatus.PENDING).forEach { pending ->
             runCatching {
                 val request = json.decodeFromString<SuspectedEventRequest>(pending.requestJson)
+                check(isValidWearableDeviceId(request.deviceId)) { "MISSING_PAIRED_DEVICE_ID" }
                 api.submitSuspectedEvent(request)
             }.onSuccess { response ->
                 if (isWearableSubmissionDelivered(pending.eventId, response.eventId, response.accepted, response.duplicate)) {
@@ -107,6 +112,7 @@ class BackupSyncWorker @AssistedInject constructor(
         dao.getEventDecisionsByStatus(SyncStatus.PENDING).forEach { pending ->
             runCatching {
                 val request = json.decodeFromString<EventDecisionRequest>(pending.requestJson)
+                check(isValidWearableDeviceId(request.deviceId)) { "MISSING_PAIRED_DEVICE_ID" }
                 api.submitEventDecision(request)
             }.onSuccess { response ->
                 if (isWearableSubmissionDelivered(pending.eventId, response.eventId, response.accepted, response.duplicate)) {

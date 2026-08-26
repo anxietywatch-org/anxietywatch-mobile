@@ -1,6 +1,7 @@
 package com.anxietywatch.mobile.data.remote
 
 import kotlinx.serialization.Serializable
+import java.util.UUID
 
 // Contrato CONFIRMADO en producción (https://api.mangoon.xyz) por el equipo de backend,
 // 11/ago/2026. Es distinto del que yo había diseñado originalmente en el .NET — este es
@@ -27,7 +28,7 @@ data class SampleQualityDto(
 data class TelemetrySampleDto(
     val timestamp: String, // ISO-8601 UTC, ej. "2026-08-11T23:50:00Z"
     val heartRateBpm: Double? = null,
-    val ibiMs: List<Double>? = null,
+    val ibiMs: List<Double> = emptyList(),
     val accelerometer: AccelerometerSampleDto? = null,
     val skinTemperatureCelsius: Double? = null,
     val ambientTemperatureCelsius: Double? = null,
@@ -226,6 +227,13 @@ internal fun isWearableSubmissionDelivered(
 ): Boolean = responseIdMatches(expectedId, responseId) && (accepted || duplicate)
 
 internal fun responseIdMatches(routeId: String, payloadId: String): Boolean = routeId == payloadId
+
+internal fun httpIbiMs(sensorIbiMs: List<Double>?): List<Double> = sensorIbiMs ?: emptyList()
+
+internal fun isValidWearableDeviceId(deviceId: String?): Boolean {
+    val uuid = deviceId?.let { runCatching { UUID.fromString(it) }.getOrNull() } ?: return false
+    return uuid != UUID(0L, 0L)
+}
 
 // --- Perfil, dashboard y episodios (contrato confirmado en backend) ---
 

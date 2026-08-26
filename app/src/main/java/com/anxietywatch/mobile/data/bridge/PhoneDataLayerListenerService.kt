@@ -21,6 +21,7 @@ import com.anxietywatch.mobile.data.remote.SuspectedEventFeaturesRequest
 import com.anxietywatch.mobile.data.remote.SuspectedEventRequest
 import com.anxietywatch.mobile.data.remote.TelemetrySampleDto
 import com.anxietywatch.mobile.data.remote.TriggerSosRequest
+import com.anxietywatch.mobile.data.remote.httpIbiMs
 import com.anxietywatch.mobile.data.remote.isWearableSubmissionDelivered
 import com.anxietywatch.mobile.data.remote.responseIdMatches
 import com.google.android.gms.wearable.DataClient
@@ -109,9 +110,11 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             return
         }
         val eventId = payloadEventId
+        val deviceId = sessionContext.pairedDeviceId()
+            ?: return missingPairedDeviceId("SOS")
         val request = TriggerSosRequest(
             eventId = eventId,
-            deviceId = sessionContext.pairedDeviceId(),
+            deviceId = deviceId,
             userId = null,
             triggeredAt = obj.string("triggeredAt") ?: return,
             source = obj.string("source") ?: "WATCH",
@@ -140,9 +143,11 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             return
         }
         val eventId = payloadEventId
+        val deviceId = sessionContext.pairedDeviceId()
+            ?: return missingPairedDeviceId("SOS_CANCEL")
         val request = SosCancelRequest(
             eventId = eventId,
-            deviceId = sessionContext.pairedDeviceId(),
+            deviceId = deviceId,
             userId = null,
             cancelledAt = obj.string("cancelledAt") ?: return,
             reason = obj.string("reason"),
@@ -170,11 +175,13 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             return
         }
         val eventId = payloadEventId
+        val deviceId = sessionContext.pairedDeviceId()
+            ?: return missingPairedDeviceId("SUSPECTED")
         val features = obj["features"]?.let { runCatching { it.jsonObject }.getOrNull() } ?: return
         val baseline = obj["baseline"]?.let { runCatching { it.jsonObject }.getOrNull() } ?: return
         val request = SuspectedEventRequest(
             eventId = eventId,
-            deviceId = sessionContext.pairedDeviceId(),
+            deviceId = deviceId,
             userId = null,
             sessionId = sessionContext.currentSessionId(),
             sequence = sessionContext.nextSequence(),
@@ -225,9 +232,11 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             return
         }
         val eventId = payloadEventId
+        val deviceId = sessionContext.pairedDeviceId()
+            ?: return missingPairedDeviceId("DECISION")
         val request = EventDecisionRequest(
             eventId = eventId,
-            deviceId = sessionContext.pairedDeviceId(),
+            deviceId = deviceId,
             userId = null,
             sessionId = sessionContext.currentSessionId(),
             sequence = sessionContext.nextSequence(),
@@ -258,6 +267,8 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             return
         }
         val batchId = payloadBatchId
+        val deviceId = sessionContext.pairedDeviceId()
+            ?: return missingPairedDeviceId("TELEMETRY")
         val records = obj["records"]?.jsonArray ?: JsonArray(emptyList())
         val samplesByTimestamp = linkedMapOf<Long, MutableTelemetrySample>()
 
@@ -283,7 +294,7 @@ class PhoneDataLayerListenerService : WearableListenerService() {
         val timestamps = samplesByTimestamp.keys.sorted()
         val request = CreateTelemetryBatchRequest(
             batchId = batchId,
-            deviceId = sessionContext.pairedDeviceId(),
+            deviceId = deviceId,
             userId = null,
             sessionId = sessionContext.currentSessionId(),
             startedAt = Instant.ofEpochMilli(timestamps.first()).toString(),
@@ -318,6 +329,12 @@ class PhoneDataLayerListenerService : WearableListenerService() {
     private fun logRouteIdMismatch(kind: String) {
         if (BuildConfig.DEBUG) {
             Log.d(TAG, "Rejected $kind envelope: route/payload ID mismatch")
+        }
+    }
+
+    private fun missingPairedDeviceId(kind: String) {
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "$kind blocked: MISSING_PAIRED_DEVICE_ID")
         }
     }
 
@@ -378,7 +395,7 @@ class PhoneDataLayerListenerService : WearableListenerService() {
         fun toDto(timestampMillis: Long) = TelemetrySampleDto(
             timestamp = Instant.ofEpochMilli(timestampMillis).toString(),
             heartRateBpm = heartRateBpm,
-            ibiMs = ibiMs,
+            ibiMs = httpIbiMs(ibiMs),
             accelerometer = accelerometer,
             skinTemperatureCelsius = skinTemperatureCelsius,
             quality = SampleQualityDto(heartRateQuality, ibiQuality, "onBody"),
