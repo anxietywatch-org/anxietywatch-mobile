@@ -107,7 +107,22 @@ class ApiDtosTest {
         )
 
         assertNull(request.userId)
-        assertNull(request.samples.single().ibiMs)
+        assertEquals(emptyList<Double>(), request.samples.single().ibiMs)
+    }
+
+    @Test
+    fun nullableSensorIbiMapsToEmptyHttpListAndRealIbiIsPreserved() {
+        assertEquals(emptyList<Double>(), httpIbiMs(null))
+        assertEquals(listOf(810.0, 820.0), httpIbiMs(listOf(810.0, 820.0)))
+    }
+
+    @Test
+    fun allWearableUploadsRejectMissingOrEmptyDeviceId() {
+        listOf("telemetry", "sos", "sos-cancel", "suspected", "decision").forEach { _ ->
+            assertEquals(false, isValidWearableDeviceId(null))
+            assertEquals(false, isValidWearableDeviceId("00000000-0000-0000-0000-000000000000"))
+        }
+        assertEquals(true, isValidWearableDeviceId("123e4567-e89b-12d3-a456-426614174000"))
     }
 
     private companion object {
