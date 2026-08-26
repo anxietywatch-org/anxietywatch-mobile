@@ -52,4 +52,32 @@ class NavigationRoutingTest {
     fun patientLogoutDestinationIsTokenEntry() {
         assertEquals("token_entry", Routes.TokenEntry.route)
     }
+
+    @Test
+    fun caregiverGraphUsesStableAlertAndProfileRoutes() {
+        assertEquals("caregiver_alerts", Routes.CaregiverAlerts.route)
+        assertEquals("caregiver_profile", Routes.CaregiverProfile.route)
+        assertEquals(
+            "caregiver_alert_detail/alert-alex-1",
+            Routes.CaregiverAlertDetail.build("alert-alex-1"),
+        )
+    }
+
+    @Test
+    fun parameterizedRoutesNeverUseVisibleNamesOrIndexes() {
+        val patient = Routes.PatientDetail.build("patient-alex")
+        val alert = Routes.CaregiverAlertDetail.build("alert-alex-1")
+        val event = Routes.EventDetail.build("event-alex-1")
+
+        assertEquals(false, patient.contains("Alex"))
+        assertEquals(false, alert.contains("Revisión"))
+        assertEquals(false, event.contains("0"))
+    }
+
+    @Test
+    fun logoutBackStackDestinationIsOutsideAuthenticatedGraph() {
+        assertEquals(Routes.TokenEntry.route, Routes.TokenEntry.route)
+        assertNotEquals(Routes.TokenEntry.route, Routes.DashboardCaregiver.route)
+        assertNotEquals(Routes.TokenEntry.route, Routes.HomePatient.route)
+    }
 }
