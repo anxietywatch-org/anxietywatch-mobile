@@ -44,6 +44,11 @@ class NavigationRoutingTest {
     }
 
     @Test
+    fun patientDetailRouteKeepsBackStackDestination() {
+        assertEquals("patient_detail/{patientId}", Routes.PatientDetail.route)
+    }
+
+    @Test
     fun patientLogoutDestinationIsTokenEntry() {
         assertEquals("token_entry", Routes.TokenEntry.route)
     }

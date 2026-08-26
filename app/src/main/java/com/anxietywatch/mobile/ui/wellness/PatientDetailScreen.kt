@@ -1,8 +1,5 @@
 package com.anxietywatch.mobile.ui.wellness
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,132 +8,162 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Air
-import androidx.compose.material.icons.filled.DirectionsRun
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.anxietywatch.mobile.ui.common.ConnectivityCard
+import com.anxietywatch.mobile.ui.common.ConnectivityStatus
+import com.anxietywatch.mobile.ui.common.DataFreshnessLabel
+import com.anxietywatch.mobile.ui.common.EmptyState
+import com.anxietywatch.mobile.ui.common.ErrorState
+import com.anxietywatch.mobile.ui.common.LoadingState
+import com.anxietywatch.mobile.ui.common.MetricCard
+import com.anxietywatch.mobile.ui.common.ScreenScaffold
 import com.anxietywatch.mobile.ui.common.SectionHeader
 import com.anxietywatch.mobile.ui.common.StatusBadge
-
-data class WellnessEvent(
-    val id: String,
-    val title: String,
-    val description: String,
-    val time: String,
-    val type: WellnessEventType,
-)
-
-enum class WellnessEventType { Crisis, Breathing, ElevatedRhythm }
+import com.anxietywatch.mobile.ui.common.AlertRow
 
 @Composable
 fun PatientDetailScreen(
     patientId: String,
-    onEventClick: (String) -> Unit,
+    onBack: () -> Unit = {},
+    onEventClick: (String) -> Unit = {},
+    onAlertClick: (String) -> Unit = {},
+    viewModel: CaregiverPatientDetailViewModel? = null,
+    state: CaregiverPatientDetailUiState? = null,
+    onRetry: (() -> Unit)? = null,
 ) {
-    val patientName = if (patientId == "patient-sofia") "Sofía" else "Alex"
-    val events = remember {
-        listOf(
-            WellnessEvent("event-crisis-1", "Crisis detectada", "Pico de ansiedad detectado por el reloj", "Hoy, 14:20", WellnessEventType.Crisis),
-            WellnessEvent("event-breathing-1", "Sesión de respiración", "Respiración guiada completada", "Hoy, 11:05", WellnessEventType.Breathing),
-            WellnessEvent("event-rhythm-1", "Ritmo elevado", "Frecuencia cardíaca sobre el promedio basal", "Ayer, 19:40", WellnessEventType.ElevatedRhythm),
+    if (state != null) {
+        PatientDetailStateContent(state, onBack, onEventClick, onAlertClick, onRetry ?: {})
+    } else {
+        val resolvedViewModel = viewModel ?: hiltViewModel<CaregiverPatientDetailViewModel>()
+        val collectedState by resolvedViewModel.uiState.collectAsState()
+        PatientDetailStateContent(
+            state = collectedState,
+            onBack = onBack,
+            onEventClick = onEventClick,
+            onAlertClick = onAlertClick,
+            onRetry = resolvedViewModel::retry,
         )
     }
-    var selectedBar by remember { mutableIntStateOf(3) }
-    val bars = listOf(78, 84, 91, 102)
-    val labels = listOf("08:00", "12:00", "16:00", "Ahora")
-
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
-        SectionHeader(eyebrow = "CUIDADOR", title = patientName)
-        StatusBadge("Estable", modifier = Modifier.padding(bottom = 8.dp))
-        Spacer(Modifier.height(24.dp))
-        Text("Frecuencia cardíaca", style = MaterialTheme.typography.titleLarge)
-        Card(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("BPM por franja horaria", style = MaterialTheme.typography.bodySmall)
-                HeartRateBarChart(
-                    values = bars,
-                    labels = labels,
-                    selectedIndex = selectedBar,
-                    onSelected = { selectedBar = it },
-                )
-            }
-        }
-        Text("Eventos recientes", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
-        events.forEach { event ->
-            EventRow(event = event, onClick = { onEventClick(event.id) })
-        }
-    }
 }
 
 @Composable
-private fun HeartRateBarChart(
-    values: List<Int>,
-    labels: List<String>,
-    selectedIndex: Int,
-    onSelected: (Int) -> Unit,
+private fun PatientDetailStateContent(
+    state: CaregiverPatientDetailUiState,
+    onBack: () -> Unit,
+    onEventClick: (String) -> Unit,
+    onAlertClick: (String) -> Unit,
+    onRetry: () -> Unit,
 ) {
-    val selectedColor = MaterialTheme.colorScheme.primary
-    val unselectedColor = MaterialTheme.colorScheme.primaryContainer
-    Row(modifier = Modifier.fillMaxWidth().height(220.dp).padding(top = 12.dp), verticalAlignment = Alignment.Bottom) {
-        values.forEachIndexed { index, value ->
-            Column(
-                modifier = Modifier.weight(1f).fillMaxSize().clickable { onSelected(index) },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Bottom,
-            ) {
-                if (selectedIndex == index) {
-                    Text("$value BPM", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                }
-                Canvas(modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp, vertical = 8.dp)) {
-                    val maxHeight = size.height * (value / 120f)
-                    drawRoundRect(
-                        color = if (selectedIndex == index) selectedColor else unselectedColor,
-                        topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - maxHeight),
-                        size = androidx.compose.ui.geometry.Size(size.width, maxHeight),
-                        cornerRadius = CornerRadius(10f, 10f),
-                    )
-                }
-                Text(labels[index], style = MaterialTheme.typography.labelSmall)
-            }
+    ScreenScaffold {
+        when (state) {
+            CaregiverPatientDetailUiState.Loading -> LoadingState("Cargando paciente...")
+            is CaregiverPatientDetailUiState.Error -> ErrorState(state.message, onRetry)
+            is CaregiverPatientDetailUiState.Content -> PatientDetailContent(
+                state.data,
+                onBack,
+                onEventClick,
+                onAlertClick,
+            )
         }
     }
 }
 
 @Composable
-private fun EventRow(event: WellnessEvent, onClick: () -> Unit) {
-    val (icon, tint) = when (event.type) {
-        WellnessEventType.Crisis -> Icons.Default.Warning to MaterialTheme.colorScheme.error
-        WellnessEventType.Breathing -> Icons.Default.Air to MaterialTheme.colorScheme.tertiary
-        WellnessEventType.ElevatedRhythm -> Icons.Default.DirectionsRun to MaterialTheme.colorScheme.secondary
+private fun PatientDetailContent(
+    patient: CaregiverPatientDetailUiModel,
+    onBack: () -> Unit,
+    onEventClick: (String) -> Unit,
+    onAlertClick: (String) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
+        TextButton(onClick = onBack) { Text("Volver a pacientes") }
+        SectionHeader(
+            eyebrow = "CUIDADOR",
+            title = patient.displayName,
+            description = "Detalle disponible para este paciente",
+        )
+        patient.alertState?.let { StatusBadge(it, modifier = Modifier.padding(bottom = 12.dp)) }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            MetricCard(
+                label = "Frecuencia cardíaca",
+                value = patient.bpm?.toString() ?: "--",
+                unit = patient.bpm?.let { "BPM" },
+                detail = patient.bpm?.let { null } ?: "Sin lectura",
+                modifier = Modifier.weight(1f),
+            )
+            MetricCard(
+                label = "Ansiedad",
+                value = patient.anxiety?.toString() ?: "Sin estado disponible",
+                detail = patient.anxiety?.let { "Nivel disponible" },
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+        ConnectivityCard(
+            status = patient.connectivity ?: ConnectivityStatus.Unknown,
+            lastSync = patient.lastUpdated ?: "Sin actualización",
+        )
+        patient.lastUpdated?.let {
+            DataFreshnessLabel(it, modifier = Modifier.padding(top = 8.dp))
+        }
+        DetailEvents(patient.recentEvents, onEventClick)
+        DetailAlerts(patient.recentAlerts, onAlertClick)
     }
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = tint.copy(alpha = 0.15f), shape = CircleShape, modifier = Modifier.size(40.dp)) {
-                androidx.compose.material3.Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.padding(9.dp))
-            }
-            Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(event.title, style = MaterialTheme.typography.titleMedium)
-                Text(event.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Text(event.time, style = MaterialTheme.typography.labelSmall)
+}
+
+@Composable
+private fun DetailEvents(
+    events: List<CaregiverRecentEventUiModel>,
+    onEventClick: (String) -> Unit,
+) {
+    Spacer(Modifier.height(24.dp))
+    Text("Actividad reciente", style = MaterialTheme.typography.titleLarge)
+    if (events.isEmpty()) {
+        EmptyState("Historial no disponible", "No hay eventos recientes disponibles.")
+    } else {
+        events.forEach { event ->
+            AlertRow(
+                title = event.title,
+                patientName = event.description ?: "Sin detalle disponible",
+                occurredAt = event.occurredAt ?: "Sin fecha",
+                status = "Disponible",
+                onClick = { onEventClick(event.id) },
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailAlerts(
+    alerts: List<CaregiverRecentAlertUiModel>,
+    onAlertClick: (String) -> Unit,
+) {
+    Spacer(Modifier.height(24.dp))
+    Text("Alertas recientes", style = MaterialTheme.typography.titleLarge)
+    if (alerts.isEmpty()) {
+        EmptyState("Alertas no disponibles", "No hay alertas recientes disponibles.")
+    } else {
+        alerts.forEach { alert ->
+            AlertRow(
+                title = alert.title,
+                patientName = alert.description ?: "Sin detalle disponible",
+                occurredAt = alert.occurredAt ?: "Sin fecha",
+                status = alert.status ?: "Disponible",
+                onClick = { onAlertClick(alert.id) },
+                modifier = Modifier.padding(top = 8.dp),
+            )
         }
     }
 }

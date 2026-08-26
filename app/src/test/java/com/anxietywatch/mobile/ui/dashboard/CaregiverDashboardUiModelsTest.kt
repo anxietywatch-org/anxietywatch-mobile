@@ -75,6 +75,8 @@ class CaregiverDashboardUiModelsTest {
             override suspend fun loadDashboard(): CaregiverDashboardSource {
                 error("source unavailable")
             }
+
+            override suspend fun getPatientDetail(patientId: String) = null
         }
 
         val error = runCatching { repository.loadDashboard() }.exceptionOrNull()

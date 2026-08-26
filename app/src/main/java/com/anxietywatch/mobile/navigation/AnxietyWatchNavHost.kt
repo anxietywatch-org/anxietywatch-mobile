@@ -223,6 +223,7 @@ fun AnxietyWatchNavHost(
         composable(Routes.PatientDetail.route) { backStackEntry ->
             PatientDetailScreen(
                 patientId = backStackEntry.arguments?.getString("patientId").orEmpty(),
+                onBack = { navController.popBackStack() },
                 onEventClick = { eventId -> navController.navigate(Routes.EventDetail.build(eventId)) },
             )
         }
