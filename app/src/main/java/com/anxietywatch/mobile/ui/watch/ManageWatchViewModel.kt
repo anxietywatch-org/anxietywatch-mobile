@@ -2,7 +2,11 @@ package com.anxietywatch.mobile.ui.watch
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.content.Context
+import com.anxietywatch.mobile.data.bridge.MonitoringSessionContext
 import com.anxietywatch.mobile.data.bridge.WatchStateRepository
+import com.anxietywatch.mobile.service.MonitoringForegroundService
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
@@ -25,6 +29,8 @@ data class ManageWatchUiState(
 @HiltViewModel
 class ManageWatchViewModel @Inject constructor(
     private val watchStateRepository: WatchStateRepository,
+    private val sessionContext: MonitoringSessionContext,
+    @param:ApplicationContext private val context: Context,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ManageWatchUiState())
     val uiState: StateFlow<ManageWatchUiState> = _uiState.asStateFlow()
@@ -60,8 +66,11 @@ class ManageWatchViewModel @Inject constructor(
     }
 
     fun disconnect() {
-        // NodeClient has no disconnect operation. Never fake a disconnected state locally.
-        watchStateRepository.refresh()
+        viewModelScope.launch {
+            sessionContext.clearPairing()
+            MonitoringForegroundService.stop(context)
+            watchStateRepository.refresh()
+        }
     }
 }
 

@@ -7,6 +7,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.NetworkType
 import androidx.work.WorkerParameters
 import com.anxietywatch.mobile.data.local.AppDatabase
+import com.anxietywatch.mobile.data.bridge.MonitoringSessionContext
 import com.anxietywatch.mobile.data.local.SyncStatus
 import com.anxietywatch.mobile.data.remote.AnxietyWatchApi
 import com.anxietywatch.mobile.data.remote.CreateTelemetryBatchRequest
@@ -36,6 +37,7 @@ class BackupSyncWorker @AssistedInject constructor(
     private val sessionRepository: SessionRepository,
     private val database: AppDatabase,
     private val api: AnxietyWatchApi,
+    private val sessionContext: MonitoringSessionContext,
 ) : CoroutineWorker(context, params) {
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -48,7 +50,7 @@ class BackupSyncWorker @AssistedInject constructor(
         dao.getSosEventsByStatus(SyncStatus.PENDING).forEach { pending ->
             runCatching {
                 val request = json.decodeFromString<TriggerSosRequest>(pending.requestJson)
-                check(isValidWearableDeviceId(request.deviceId)) { "MISSING_PAIRED_DEVICE_ID" }
+                check(isCurrentlyPaired(request.deviceId)) { "MISSING_OR_STALE_PAIRED_DEVICE_ID" }
                 api.triggerSos(request)
             }.onSuccess { response ->
                 if (isWearableSubmissionDelivered(pending.eventId, response.eventId, response.accepted, response.duplicate)) {
@@ -64,7 +66,7 @@ class BackupSyncWorker @AssistedInject constructor(
         dao.getSosCancelEventsByStatus(SyncStatus.PENDING).forEach { pending ->
             runCatching {
                 val request = json.decodeFromString<SosCancelRequest>(pending.requestJson)
-                check(isValidWearableDeviceId(request.deviceId)) { "MISSING_PAIRED_DEVICE_ID" }
+                check(isCurrentlyPaired(request.deviceId)) { "MISSING_OR_STALE_PAIRED_DEVICE_ID" }
                 api.cancelSos(request)
             }.onSuccess { response ->
                 if (isWearableSubmissionDelivered(pending.eventId, response.eventId, response.accepted, response.duplicate)) {
@@ -80,7 +82,7 @@ class BackupSyncWorker @AssistedInject constructor(
         dao.getTelemetryBatchesByStatus(SyncStatus.PENDING).forEach { pending ->
             runCatching {
                 val request = json.decodeFromString<CreateTelemetryBatchRequest>(pending.requestJson)
-                check(isValidWearableDeviceId(request.deviceId)) { "MISSING_PAIRED_DEVICE_ID" }
+                check(isCurrentlyPaired(request.deviceId)) { "MISSING_OR_STALE_PAIRED_DEVICE_ID" }
                 api.sendTelemetryBatch(request)
             }.onSuccess { response ->
                 if (isWearableSubmissionDelivered(pending.batchId, response.batchId, response.accepted, response.duplicate)) {
@@ -96,7 +98,7 @@ class BackupSyncWorker @AssistedInject constructor(
         dao.getSuspectedEventsByStatus(SyncStatus.PENDING).forEach { pending ->
             runCatching {
                 val request = json.decodeFromString<SuspectedEventRequest>(pending.requestJson)
-                check(isValidWearableDeviceId(request.deviceId)) { "MISSING_PAIRED_DEVICE_ID" }
+                check(isCurrentlyPaired(request.deviceId)) { "MISSING_OR_STALE_PAIRED_DEVICE_ID" }
                 api.submitSuspectedEvent(request)
             }.onSuccess { response ->
                 if (isWearableSubmissionDelivered(pending.eventId, response.eventId, response.accepted, response.duplicate)) {
@@ -112,7 +114,7 @@ class BackupSyncWorker @AssistedInject constructor(
         dao.getEventDecisionsByStatus(SyncStatus.PENDING).forEach { pending ->
             runCatching {
                 val request = json.decodeFromString<EventDecisionRequest>(pending.requestJson)
-                check(isValidWearableDeviceId(request.deviceId)) { "MISSING_PAIRED_DEVICE_ID" }
+                check(isCurrentlyPaired(request.deviceId)) { "MISSING_OR_STALE_PAIRED_DEVICE_ID" }
                 api.submitEventDecision(request)
             }.onSuccess { response ->
                 if (isWearableSubmissionDelivered(pending.eventId, response.eventId, response.accepted, response.duplicate)) {
@@ -131,6 +133,9 @@ class BackupSyncWorker @AssistedInject constructor(
 
         return Result.success()
     }
+
+    private fun isCurrentlyPaired(deviceId: String): Boolean =
+        isValidWearableDeviceId(deviceId) && sessionContext.pairedDeviceId() == deviceId
 
     companion object {
         const val UNIQUE_WORK_NAME = "backup_sync_worker"
