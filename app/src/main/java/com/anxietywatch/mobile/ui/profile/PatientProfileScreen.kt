@@ -65,6 +65,8 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.anxietywatch.mobile.ui.common.ErrorState
+import com.anxietywatch.mobile.ui.common.LoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -210,6 +212,20 @@ fun PatientProfileScreen(
         if (uiState is PatientProfileUiState.Success) onCompleted()
     }
 
+    when (val state = uiState) {
+        PatientProfileUiState.Idle,
+        PatientProfileUiState.Loading,
+        -> if (remoteProfile == null) {
+            LoadingState("Cargando tu perfil...")
+            return
+        }
+        is PatientProfileUiState.LoadError -> {
+            ErrorState(state.message, viewModel::loadProfile)
+            return
+        }
+        else -> Unit
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -245,6 +261,12 @@ fun PatientProfileScreen(
             }
         }
         ProfileField("Nombre completo", fullName) { fullName = it }
+        Text(
+            "Edad, género, altura y peso se mantienen localmente en esta sesión; no se envían al backend actual.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
         ProfileField("Edad", age) { age = it.filter(Char::isDigit).take(3) }
         ExposedDropdownMenuBox(
             expanded = genderExpanded,

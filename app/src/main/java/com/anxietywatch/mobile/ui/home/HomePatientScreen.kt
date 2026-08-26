@@ -24,9 +24,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Air
-import androidx.compose.material.icons.filled.Bedtime
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.HistoryEdu
@@ -35,6 +32,7 @@ import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -54,27 +52,17 @@ import com.anxietywatch.mobile.data.remote.EpisodeDto
 import com.anxietywatch.mobile.ui.common.ErrorState
 import com.anxietywatch.mobile.ui.common.LoadingState
 import com.anxietywatch.mobile.ui.common.MetricCard
+import com.anxietywatch.mobile.ui.common.ConnectivityCard
+import com.anxietywatch.mobile.ui.common.StatusBadge
+import com.anxietywatch.mobile.ui.common.StatusTone
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 
 /**
  * Home del paciente (E06), portado 1:1 desde el HTML/CSS real del Stitch
- * (home_paciente_ritmo_cardiaco_con_respiracion/code.html) -- mismos colores exactos,
- * misma jerarquia, mismo texto. [state] llega vacio/mock por ahora -- se conecta a datos
- * reales de dashboard/episodios mediante HomePatientViewModel.
+ * (home_paciente_ritmo_cardiaco_con_respiracion/code.html), manteniendo la jerarquía
+ * visual y separando datos del reloj de la clasificación de ansiedad.
  */
-data class HomePatientUiState(
-    val bpm: Int? = null,
-    val watchSampleTimestamp: String? = null,
-    val statusLabel: String = "Estado: Normal",
-    val statusMessage: String = "Tu ritmo cardíaco es estable. Estás haciendo un gran " +
-        "trabajo manteniendo la calma hoy.",
-    val breathingRate: Int = 14,
-    val sleepHours: Double = 7.5,
-    val episodes: List<EpisodeDto> = emptyList(),
-    val streakDays: Int = 0,
-    val weeklyRecordsUsed: Int = 0,
-    val weeklyRecordsLimit: Int? = null,
-)
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomePatientScreen(
     state: HomePatientUiState? = null,
@@ -98,23 +86,41 @@ fun HomePatientScreen(
             return
         }
     }
-    Column(modifier = Modifier.fillMaxSize()) {
-        TopBar()
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-        ) {
-            Spacer(Modifier.height(16.dp))
-            HeartRateHeroCard(displayedState)
-            Spacer(Modifier.height(20.dp))
-            QuickInsightsRow(displayedState)
-            Spacer(Modifier.height(20.dp))
-            QuickActionsSection(onRelajarmeClick)
-            Spacer(Modifier.height(20.dp))
-            BitacoraRecienteCard(displayedState.episodes)
-            Spacer(Modifier.height(88.dp)) // deja aire sobre la barra inferior
+    val refreshing = (networkState as? HomePatientNetworkUiState.Success)?.refreshing == true
+    PullToRefreshBox(
+        isRefreshing = refreshing,
+        onRefresh = viewModel::refresh,
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            (networkState as? HomePatientNetworkUiState.Success)?.refreshError?.let {
+                ErrorState(it, onRetry = viewModel::refresh)
+            }
+            TopBar()
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+            ) {
+                Spacer(Modifier.height(16.dp))
+                PatientHeartRateCard(displayedState)
+                Spacer(Modifier.height(16.dp))
+                ConnectivityCard(
+                    status = displayedState.connectivity.status,
+                    deviceName = displayedState.connectivity.deviceName,
+                    lastSync = displayedState.connectivity.lastSyncLabel,
+                )
+                Spacer(Modifier.height(16.dp))
+                AnxietyStatusCard(displayedState.anxiety)
+                Spacer(Modifier.height(20.dp))
+                QuickInsightsRow(displayedState)
+                Spacer(Modifier.height(20.dp))
+                QuickActionsSection(onRelajarmeClick)
+                Spacer(Modifier.height(20.dp))
+                BitacoraRecienteCard(displayedState.episodes)
+                Spacer(Modifier.height(88.dp)) // deja aire sobre la barra inferior
+            }
         }
     }
 }
@@ -147,7 +153,7 @@ private fun TopBar() {
 }
 
 @Composable
-private fun HeartRateHeroCard(state: HomePatientUiState) {
+fun PatientHeartRateCard(state: HomePatientUiState) {
     Surface(
         color = MaterialTheme.colorScheme.primary,
         shape = RoundedCornerShape(32.dp),
@@ -166,29 +172,27 @@ private fun HeartRateHeroCard(state: HomePatientUiState) {
             )
             Spacer(Modifier.height(16.dp))
             BreathingRing(bpm = state.bpm)
-            Spacer(Modifier.height(24.dp))
-            Row(
-                modifier = Modifier
-                    .background(MaterialTheme.colorScheme.tertiary, RoundedCornerShape(50))
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    Icons.Filled.CheckCircle,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onTertiary,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(state.statusLabel, color = MaterialTheme.colorScheme.onTertiary, style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+@Composable
+private fun AnxietyStatusCard(anxiety: PatientAnxietyUiState?) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        shape = RoundedCornerShape(20.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Estado de ansiedad", style = MaterialTheme.typography.titleMedium)
+            if (anxiety == null) {
+                StatusBadge("No disponible", tone = StatusTone.Neutral)
+                Text("Sin clasificación disponible.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                StatusBadge(anxiety.label, tone = StatusTone.Positive)
+                Text(anxiety.detail, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Spacer(Modifier.height(12.dp))
-            Text(
-                state.statusMessage,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.86f),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            )
         }
     }
 }
@@ -257,10 +261,6 @@ private fun BreathingRing(bpm: Int?) {
 @Composable
 private fun QuickInsightsRow(state: HomePatientUiState) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            MetricCard("Respiración", "${state.breathingRate}", "rpm", modifier = Modifier.weight(1f))
-            MetricCard("Sueño", "${state.sleepHours}", "hrs", modifier = Modifier.weight(1f))
-        }
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             MetricCard("Racha", "${state.streakDays}", "días", modifier = Modifier.weight(1f))
             MetricCard(

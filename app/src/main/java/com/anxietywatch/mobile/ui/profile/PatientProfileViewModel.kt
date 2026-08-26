@@ -31,7 +31,9 @@ data class PatientProfileData(
 sealed interface PatientProfileUiState {
     data object Idle : PatientProfileUiState
     data object Loading : PatientProfileUiState
+    data object Loaded : PatientProfileUiState
     data object Success : PatientProfileUiState
+    data class LoadError(val message: String) : PatientProfileUiState
     data class Error(val message: String) : PatientProfileUiState
 }
 
@@ -43,11 +45,25 @@ class PatientProfileViewModel @Inject constructor(
     val uiState: StateFlow<PatientProfileUiState> = _uiState.asStateFlow()
     private val _profile = MutableStateFlow<ProfileResponseDto?>(null)
     val profile: StateFlow<ProfileResponseDto?> = _profile.asStateFlow()
-    private var localDemographics: PatientProfileData? = null
+    private val _localDemographics = MutableStateFlow<PatientProfileData?>(null)
+    val localDemographics: StateFlow<PatientProfileData?> = _localDemographics.asStateFlow()
 
     fun loadProfile() {
+        _uiState.update { PatientProfileUiState.Loading }
         viewModelScope.launch {
-            runCatching { api.getProfile() }.onSuccess { _profile.value = it }
+            runCatching { api.getProfile() }
+                .onSuccess {
+                    _profile.value = it
+                    _uiState.update { PatientProfileUiState.Loaded }
+                }
+                .onFailure { error ->
+                    val message = if (error is HttpException && error.code() == 401) {
+                        "Tu sesión expiró. Ingresa nuevamente tu código."
+                    } else {
+                        "No pudimos cargar tu perfil. Revisa tu conexión e inténtalo de nuevo."
+                    }
+                    _uiState.update { PatientProfileUiState.LoadError(message) }
+                }
         }
     }
 
@@ -74,20 +90,11 @@ class PatientProfileViewModel @Inject constructor(
         viewModelScope.launch {
             // Age/height/weight no existen en /api/profile: quedan solo en estado local.
             // TODO: hábitos y bienestar tampoco tienen campos confirmados en el backend.
-            localDemographics = profile
+            _localDemographics.value = profile
             runCatching {
-                api.updateProfile(
-                    ProfileUpdateRequest(
-                        fullName = profile.fullName.trim(),
-                        allergies = profile.allergies.trim().ifBlank { null },
-                        currentMedications = profile.currentMedications.trim().ifBlank { null },
-                        emergencyContactName = profile.emergencyContactName.trim().ifBlank { null },
-                        emergencyContactPhone = profile.emergencyContactPhone.trim().ifBlank { null },
-                        previousAnxietyDiagnosis = profile.previousAnxietyDiagnosis,
-                        treatingProfessional = profile.treatingProfessional.trim().ifBlank { null },
-                    ),
-                )
-            }.onSuccess {
+                api.updateProfile(profileUpdateRequestFrom(profile))
+            }.onSuccess { updatedProfile ->
+                _profile.value = updatedProfile
                 _uiState.update { PatientProfileUiState.Success }
             }.onFailure { error ->
                 val message = when {
@@ -102,3 +109,14 @@ class PatientProfileViewModel @Inject constructor(
         }
     }
 }
+
+internal fun profileUpdateRequestFrom(profile: PatientProfileData): ProfileUpdateRequest =
+    ProfileUpdateRequest(
+        fullName = profile.fullName.trim(),
+        allergies = profile.allergies.trim().ifBlank { null },
+        currentMedications = profile.currentMedications.trim().ifBlank { null },
+        emergencyContactName = profile.emergencyContactName.trim().ifBlank { null },
+        emergencyContactPhone = profile.emergencyContactPhone.trim().ifBlank { null },
+        previousAnxietyDiagnosis = profile.previousAnxietyDiagnosis,
+        treatingProfessional = profile.treatingProfessional.trim().ifBlank { null },
+    )

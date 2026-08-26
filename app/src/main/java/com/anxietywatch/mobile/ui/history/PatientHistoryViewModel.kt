@@ -16,7 +16,11 @@ import javax.inject.Inject
 sealed interface PatientHistoryUiState {
     data object Idle : PatientHistoryUiState
     data object Loading : PatientHistoryUiState
-    data class Success(val episodes: List<EpisodeDto>) : PatientHistoryUiState
+    data class Success(
+        val episodes: List<EpisodeDto>,
+        val refreshing: Boolean = false,
+        val refreshError: String? = null,
+    ) : PatientHistoryUiState
     data class Error(val message: String) : PatientHistoryUiState
 }
 
@@ -30,11 +34,35 @@ class PatientHistoryViewModel @Inject constructor(
     init { loadHistory() }
 
     fun loadHistory() {
-        _uiState.update { PatientHistoryUiState.Loading }
+        loadHistoryInternal(isRefresh = false)
+    }
+
+    fun refresh() {
+        if (_uiState.value is PatientHistoryUiState.Success) {
+            _uiState.update { state ->
+                (state as PatientHistoryUiState.Success).copy(refreshing = true, refreshError = null)
+            }
+            loadHistoryInternal(isRefresh = true)
+        } else {
+            loadHistory()
+        }
+    }
+
+    private fun loadHistoryInternal(isRefresh: Boolean) {
+        if (!isRefresh) _uiState.update { PatientHistoryUiState.Loading }
         viewModelScope.launch {
             runCatching { api.getEpisodes(range = 7) }
                 .onSuccess { episodes -> _uiState.update { PatientHistoryUiState.Success(episodes) } }
                 .onFailure { error ->
+                    if (isRefresh && _uiState.value is PatientHistoryUiState.Success) {
+                        _uiState.update { state ->
+                            (state as PatientHistoryUiState.Success).copy(
+                                refreshing = false,
+                                refreshError = "No pudimos actualizar tu historial. Revisa tu conexión e inténtalo de nuevo.",
+                            )
+                        }
+                        return@onFailure
+                    }
                     val message = if (error is HttpException && error.code() == 401) {
                         "Tu sesión expiró. Ingresa nuevamente tu código."
                     } else {

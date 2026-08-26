@@ -82,6 +82,13 @@ fun MetricCard(
 
 enum class StatusTone { Neutral, Positive, Warning, Critical }
 
+enum class ConnectivityStatus {
+    ConnectedRecent,
+    ConnectedStale,
+    Disconnected,
+    Unknown,
+}
+
 @Composable
 fun StatusBadge(
     label: String,
@@ -119,11 +126,17 @@ fun DataFreshnessLabel(
 
 @Composable
 fun ConnectivityCard(
-    connected: Boolean,
+    status: ConnectivityStatus,
     lastSync: String,
     deviceName: String? = null,
     modifier: Modifier = Modifier,
 ) {
+    val (statusLabel, tone) = when (status) {
+        ConnectivityStatus.ConnectedRecent -> "Conectado · reciente" to StatusTone.Positive
+        ConnectivityStatus.ConnectedStale -> "Conectado · datos antiguos" to StatusTone.Warning
+        ConnectivityStatus.Disconnected -> "Desconectado" to StatusTone.Warning
+        ConnectivityStatus.Unknown -> "Sin información" to StatusTone.Neutral
+    }
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Conectividad", style = MaterialTheme.typography.titleMedium)
@@ -133,10 +146,7 @@ fun ConnectivityCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(deviceName ?: "Reloj no vinculado")
-                StatusBadge(
-                    label = if (connected) "Conectado" else "Desconectado",
-                    tone = if (connected) StatusTone.Positive else StatusTone.Warning,
-                )
+                StatusBadge(label = statusLabel, tone = tone)
             }
             DataFreshnessLabel(lastSync)
         }

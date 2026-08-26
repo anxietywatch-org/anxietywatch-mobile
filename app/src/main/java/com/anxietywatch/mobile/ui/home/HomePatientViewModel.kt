@@ -16,7 +16,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 sealed interface HomePatientNetworkUiState {
     data object Idle : HomePatientNetworkUiState
     data object Loading : HomePatientNetworkUiState
-    data class Success(val data: HomePatientData) : HomePatientNetworkUiState
+    data class Success(
+        val data: HomePatientData,
+        val refreshing: Boolean = false,
+        val refreshError: String? = null,
+    ) : HomePatientNetworkUiState
     data class Error(val message: String) : HomePatientNetworkUiState
 }
 
@@ -42,7 +46,7 @@ class HomePatientViewModel @Inject constructor(
                             data = current.data.copy(
                                 state = current.data.state.copy(
                                     bpm = watchState.latestSample?.heartRateBpm,
-                                    watchSampleTimestamp = watchState.latestSample?.capturedAt,
+                                    connectivity = patientConnectivityFrom(watchState, System.currentTimeMillis()),
                                 ),
                             ),
                         )
@@ -55,25 +59,46 @@ class HomePatientViewModel @Inject constructor(
     }
 
     fun loadHome() {
-        _uiState.update { HomePatientNetworkUiState.Loading }
+        loadHomeInternal(isRefresh = false)
+    }
+
+    fun refresh() {
+        if (_uiState.value is HomePatientNetworkUiState.Success) {
+            _uiState.update { state ->
+                (state as HomePatientNetworkUiState.Success).copy(refreshing = true, refreshError = null)
+            }
+            loadHomeInternal(isRefresh = true)
+        } else {
+            loadHome()
+        }
+    }
+
+    private fun loadHomeInternal(isRefresh: Boolean) {
+        if (!isRefresh) _uiState.update { HomePatientNetworkUiState.Loading }
         viewModelScope.launch {
             runCatching {
                 val summary = api.getDashboardSummary()
                 val episodes = api.getEpisodes(range = 7)
                 HomePatientData(
-                    state = HomePatientUiState(
-                        bpm = watchStateRepository.state.value.latestSample?.heartRateBpm,
-                        statusLabel = "Estado: ${summary.anxietyLevel.trend.toStatusLabel()}",
-                        statusMessage = "Nivel de ansiedad actual: ${summary.anxietyLevel.current}.",
+                    state = homePatientUiStateFrom(
+                        summary = summary,
                         episodes = episodes,
-                        streakDays = summary.streakDays,
-                        weeklyRecordsUsed = summary.weeklyRecords.used,
-                        weeklyRecordsLimit = summary.weeklyRecords.limit,
+                        watchState = watchStateRepository.state.value,
+                        nowMillis = System.currentTimeMillis(),
                     ),
                 )
             }.onSuccess { data ->
                 _uiState.update { HomePatientNetworkUiState.Success(data) }
             }.onFailure { error ->
+                if (isRefresh && _uiState.value is HomePatientNetworkUiState.Success) {
+                    _uiState.update { state ->
+                        (state as HomePatientNetworkUiState.Success).copy(
+                            refreshing = false,
+                            refreshError = "No pudimos actualizar tu resumen. Revisa tu conexión e inténtalo de nuevo.",
+                        )
+                    }
+                    return@onFailure
+                }
                 val message = if (error is HttpException && error.code() == 401) {
                     "Tu sesión expiró. Ingresa nuevamente tu código."
                 } else {
@@ -83,10 +108,4 @@ class HomePatientViewModel @Inject constructor(
             }
         }
     }
-}
-
-private fun String.toStatusLabel(): String = when (lowercase()) {
-    "up" -> "En aumento"
-    "down" -> "En descenso"
-    else -> "Estable"
 }

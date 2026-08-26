@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.anxietywatch.mobile.ui.common.ConnectivityCard
+import com.anxietywatch.mobile.ui.common.ConnectivityStatus
 import com.anxietywatch.mobile.ui.common.SectionHeader
 
 @Composable
@@ -47,7 +48,7 @@ fun ManageWatchScreen(viewModel: ManageWatchViewModel = hiltViewModel()) {
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
         SectionHeader(eyebrow = "DISPOSITIVO", title = "Gestionar reloj")
         ConnectivityCard(
-            connected = state.connected,
+            status = if (state.connected) ConnectivityStatus.ConnectedRecent else ConnectivityStatus.Disconnected,
             deviceName = state.deviceName,
             lastSync = state.lastSync,
         )
