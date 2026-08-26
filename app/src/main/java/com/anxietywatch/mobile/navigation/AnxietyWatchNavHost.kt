@@ -27,7 +27,8 @@ import com.anxietywatch.mobile.data.remote.SessionRepository
 import com.anxietywatch.mobile.service.MonitoringForegroundService
 import com.anxietywatch.mobile.ui.dashboard.DashboardCaregiverScreen
 import com.anxietywatch.mobile.ui.dashboard.CaregiverPatientsScreen
-import com.anxietywatch.mobile.ui.alerts.CriticalAlertScreen
+import com.anxietywatch.mobile.ui.alerts.CaregiverAlertDetailScreen
+import com.anxietywatch.mobile.ui.alerts.CaregiverAlertsScreen
 import com.anxietywatch.mobile.ui.crisis.CrisisActiveScreen
 import com.anxietywatch.mobile.ui.events.EventDetailScreen
 import com.anxietywatch.mobile.ui.grounding.GroundingScreen
@@ -163,6 +164,7 @@ fun AnxietyWatchNavHost(
                     navController.navigate(Routes.PatientDetail.build(patientId))
                 },
                 onViewAllPatientsClick = { navController.navigate(Routes.CaregiverPatients.route) },
+                onViewAlertsClick = { navController.navigate(Routes.CaregiverAlerts.route) },
             )
         }
         composable(Routes.CaregiverPatients.route) {
@@ -170,6 +172,18 @@ fun AnxietyWatchNavHost(
                 onPatientClick = { patientId ->
                     navController.navigate(Routes.PatientDetail.build(patientId))
                 },
+            )
+        }
+        composable(Routes.CaregiverAlerts.route) {
+            CaregiverAlertsScreen(
+                onBack = { navController.popBackStack() },
+                onAlertClick = { alertId -> navController.navigate(Routes.CaregiverAlertDetail.build(alertId)) },
+            )
+        }
+        composable(Routes.CaregiverAlertDetail.route) { backStackEntry ->
+            CaregiverAlertDetailScreen(
+                alertId = backStackEntry.arguments?.getString("alertId").orEmpty(),
+                onBack = { navController.popBackStack() },
             )
         }
 
@@ -225,14 +239,7 @@ fun AnxietyWatchNavHost(
                 patientId = backStackEntry.arguments?.getString("patientId").orEmpty(),
                 onBack = { navController.popBackStack() },
                 onEventClick = { eventId -> navController.navigate(Routes.EventDetail.build(eventId)) },
-            )
-        }
-        composable(Routes.CriticalAlert.route) { backStackEntry ->
-            val eventId = backStackEntry.arguments?.getString("eventId").orEmpty()
-            CriticalAlertScreen(
-                eventId = eventId,
-                onViewGuide = { navController.navigate(Routes.SupportGuide.build(eventId)) },
-                onDismiss = { navController.popBackStack() },
+                onAlertClick = { alertId -> navController.navigate(Routes.CaregiverAlertDetail.build(alertId)) },
             )
         }
         composable(Routes.EventDetail.route) { backStackEntry ->

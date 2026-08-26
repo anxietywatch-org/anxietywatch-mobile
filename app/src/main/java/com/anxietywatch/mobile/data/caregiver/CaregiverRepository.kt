@@ -50,9 +50,26 @@ data class CaregiverPatientDetailSource(
     val recentAlerts: List<CaregiverRecentAlertSource> = emptyList(),
 )
 
+data class CaregiverAlertSource(
+    val id: String,
+    val patientId: String,
+    val patientDisplayName: String,
+    val timestamp: String? = null,
+    val type: String? = null,
+    val status: String? = null,
+    val title: String,
+    val summary: String? = null,
+    val acknowledged: Boolean? = null,
+    val resolved: Boolean? = null,
+    val bpm: Int? = null,
+    val anxiety: Int? = null,
+)
+
 interface CaregiverRepository {
     suspend fun loadDashboard(): CaregiverDashboardSource
     suspend fun getPatientDetail(patientId: String): CaregiverPatientDetailSource?
+    suspend fun getAlerts(): List<CaregiverAlertSource> = emptyList()
+    suspend fun getAlertDetail(alertId: String): CaregiverAlertSource? = getAlerts().firstOrNull { it.id == alertId }
 }
 
 /** Temporary frontend source until a confirmed caregiver API contract exists. */
@@ -119,6 +136,24 @@ class FakeCaregiverRepository @Inject constructor() : CaregiverRepository {
         )
         else -> null
     }
+
+    override suspend fun getAlerts(): List<CaregiverAlertSource> = listOf(
+        CaregiverAlertSource(
+            id = "alert-alex-1",
+            patientId = "patient-alex",
+            patientDisplayName = "Alex",
+            timestamp = "Hoy",
+            type = "Revisión",
+            status = "Pendiente",
+            title = "Revisión pendiente",
+            summary = "Hay información reciente para revisar.",
+            bpm = 72,
+            anxiety = 68,
+        ),
+    )
+
+    override suspend fun getAlertDetail(alertId: String): CaregiverAlertSource? =
+        getAlerts().firstOrNull { it.id == alertId }
 }
 
 @Module

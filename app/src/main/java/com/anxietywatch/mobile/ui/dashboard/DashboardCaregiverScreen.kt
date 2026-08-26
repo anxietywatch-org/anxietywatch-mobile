@@ -32,10 +32,11 @@ fun DashboardCaregiverScreen(
     viewModel: DashboardCaregiverViewModel? = null,
     onPatientClick: (String) -> Unit = {},
     onViewAllPatientsClick: () -> Unit = {},
+    onViewAlertsClick: () -> Unit = {},
     state: DashboardCaregiverUiState? = null,
 ) {
     if (state != null) {
-        DashboardCaregiverStateContent(state, {}, {}, onPatientClick, onViewAllPatientsClick)
+        DashboardCaregiverStateContent(state, {}, {}, onPatientClick, onViewAllPatientsClick, onViewAlertsClick)
     } else {
         val resolvedViewModel = viewModel ?: hiltViewModel<DashboardCaregiverViewModel>()
         val collectedState by resolvedViewModel.uiState.collectAsState()
@@ -45,6 +46,7 @@ fun DashboardCaregiverScreen(
             onRefresh = resolvedViewModel::refresh,
             onPatientClick = onPatientClick,
             onViewAllPatientsClick = onViewAllPatientsClick,
+            onViewAlertsClick = onViewAlertsClick,
         )
     }
 }
@@ -56,12 +58,13 @@ private fun DashboardCaregiverStateContent(
     onRefresh: () -> Unit,
     onPatientClick: (String) -> Unit,
     onViewAllPatientsClick: () -> Unit,
+    onViewAlertsClick: () -> Unit,
 ) {
     when (state) {
         DashboardCaregiverUiState.Loading -> LoadingState("Cargando pacientes...")
         is DashboardCaregiverUiState.Error -> ErrorState(state.message, onRetry)
         is DashboardCaregiverUiState.Empty -> DashboardEmptyState(state, onRefresh)
-        is DashboardCaregiverUiState.Content -> DashboardContent(state, onRefresh, onPatientClick, onViewAllPatientsClick)
+        is DashboardCaregiverUiState.Content -> DashboardContent(state, onRefresh, onPatientClick, onViewAllPatientsClick, onViewAlertsClick)
     }
 }
 
@@ -92,6 +95,7 @@ private fun DashboardContent(
     onRefresh: () -> Unit,
     onPatientClick: (String) -> Unit,
     onViewAllPatientsClick: () -> Unit,
+    onViewAlertsClick: () -> Unit,
 ) {
     PullToRefreshBox(isRefreshing = state.isRefreshing, onRefresh = onRefresh) {
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
@@ -107,6 +111,7 @@ private fun DashboardContent(
             Spacer(Modifier.height(20.dp))
             Text("Pacientes recientes", style = MaterialTheme.typography.titleMedium)
             TextButton(onClick = onViewAllPatientsClick) { Text("Ver todos") }
+            TextButton(onClick = onViewAlertsClick) { Text("Ver alertas") }
             Spacer(Modifier.height(8.dp))
             state.data.patients.forEach { patient ->
                 CaregiverPatientRow(patient, onPatientClick)

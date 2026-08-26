@@ -15,10 +15,13 @@ sealed class Routes(val route: String) {
     data object ManageWatch : Routes("manage_watch")
     data object DashboardCaregiver : Routes("dashboard_caregiver") // E14
     data object CaregiverPatients : Routes("caregiver_patients")
+    data object CaregiverAlerts : Routes("caregiver_alerts")
+    data object CaregiverAlertDetail : Routes("caregiver_alert_detail/{alertId}") {
+        fun build(alertId: String) = "caregiver_alert_detail/$alertId"
+    }
     data object PatientDetail : Routes("patient_detail/{patientId}") { // E16
         fun build(patientId: String) = "patient_detail/$patientId"
     }
-    data object CriticalAlert : Routes("critical_alert/{eventId}") // E17
     data object EventDetail : Routes("event_detail/{eventId}") {
         fun build(eventId: String) = "event_detail/$eventId"
     }
