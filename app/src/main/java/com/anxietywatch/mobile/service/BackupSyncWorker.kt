@@ -15,6 +15,7 @@ import com.anxietywatch.mobile.data.remote.SessionRepository
 import com.anxietywatch.mobile.data.remote.SosCancelRequest
 import com.anxietywatch.mobile.data.remote.SuspectedEventRequest
 import com.anxietywatch.mobile.data.remote.TriggerSosRequest
+import com.anxietywatch.mobile.data.remote.isWearableSubmissionDelivered
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
@@ -47,8 +48,12 @@ class BackupSyncWorker @AssistedInject constructor(
             runCatching {
                 val request = json.decodeFromString<TriggerSosRequest>(pending.requestJson)
                 api.triggerSos(request)
-            }.onSuccess {
-                dao.updateSosEventStatus(pending.eventId, SyncStatus.SYNCED)
+            }.onSuccess { response ->
+                if (isWearableSubmissionDelivered(pending.eventId, response.eventId, response.accepted, response.duplicate)) {
+                    dao.updateSosEventStatus(pending.eventId, SyncStatus.SYNCED)
+                } else {
+                    dao.incrementSosAttempt(pending.eventId)
+                }
             }.onFailure {
                 dao.incrementSosAttempt(pending.eventId)
             }
@@ -58,8 +63,12 @@ class BackupSyncWorker @AssistedInject constructor(
             runCatching {
                 val request = json.decodeFromString<SosCancelRequest>(pending.requestJson)
                 api.cancelSos(request)
-            }.onSuccess {
-                dao.updateSosCancelEventStatus(pending.eventId, SyncStatus.SYNCED)
+            }.onSuccess { response ->
+                if (isWearableSubmissionDelivered(pending.eventId, response.eventId, response.accepted, response.duplicate)) {
+                    dao.updateSosCancelEventStatus(pending.eventId, SyncStatus.SYNCED)
+                } else {
+                    dao.incrementSosCancelAttempt(pending.eventId)
+                }
             }.onFailure {
                 dao.incrementSosCancelAttempt(pending.eventId)
             }
@@ -69,8 +78,12 @@ class BackupSyncWorker @AssistedInject constructor(
             runCatching {
                 val request = json.decodeFromString<CreateTelemetryBatchRequest>(pending.requestJson)
                 api.sendTelemetryBatch(request)
-            }.onSuccess {
-                dao.updateTelemetryBatchStatus(pending.batchId, SyncStatus.SYNCED)
+            }.onSuccess { response ->
+                if (isWearableSubmissionDelivered(pending.batchId, response.batchId, response.accepted, response.duplicate)) {
+                    dao.updateTelemetryBatchStatus(pending.batchId, SyncStatus.SYNCED)
+                } else {
+                    dao.incrementTelemetryAttempt(pending.batchId)
+                }
             }.onFailure {
                 dao.incrementTelemetryAttempt(pending.batchId)
             }
@@ -80,8 +93,12 @@ class BackupSyncWorker @AssistedInject constructor(
             runCatching {
                 val request = json.decodeFromString<SuspectedEventRequest>(pending.requestJson)
                 api.submitSuspectedEvent(request)
-            }.onSuccess {
-                dao.updateSuspectedEventStatus(pending.eventId, SyncStatus.SYNCED)
+            }.onSuccess { response ->
+                if (isWearableSubmissionDelivered(pending.eventId, response.eventId, response.accepted, response.duplicate)) {
+                    dao.updateSuspectedEventStatus(pending.eventId, SyncStatus.SYNCED)
+                } else {
+                    dao.incrementSuspectedAttempt(pending.eventId)
+                }
             }.onFailure {
                 dao.incrementSuspectedAttempt(pending.eventId)
             }
@@ -91,8 +108,12 @@ class BackupSyncWorker @AssistedInject constructor(
             runCatching {
                 val request = json.decodeFromString<EventDecisionRequest>(pending.requestJson)
                 api.submitEventDecision(request)
-            }.onSuccess {
-                dao.updateEventDecisionStatus(pending.eventId, SyncStatus.SYNCED)
+            }.onSuccess { response ->
+                if (isWearableSubmissionDelivered(pending.eventId, response.eventId, response.accepted, response.duplicate)) {
+                    dao.updateEventDecisionStatus(pending.eventId, SyncStatus.SYNCED)
+                } else {
+                    dao.incrementEventDecisionAttempt(pending.eventId)
+                }
             }.onFailure {
                 dao.incrementEventDecisionAttempt(pending.eventId)
             }
