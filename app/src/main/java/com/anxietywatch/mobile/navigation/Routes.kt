@@ -1,5 +1,7 @@
 package com.anxietywatch.mobile.navigation
 
+import android.net.Uri
+
 sealed class Routes(val route: String) {
     data object Splash : Routes("splash")
     data object TokenEntry : Routes("token_entry") // E02: ingreso por token, sin login tradicional
@@ -15,13 +17,14 @@ sealed class Routes(val route: String) {
     data object ManageWatch : Routes("manage_watch")
     data object DashboardCaregiver : Routes("dashboard_caregiver") // E14
     data object PatientDetail : Routes("patient_detail/{patientId}") { // E16
-        fun build(patientId: String) = "patient_detail/$patientId"
+        fun build(patientId: String) = "patient_detail/${Uri.encode(patientId)}"
     }
-    data object CriticalAlert : Routes("critical_alert/{eventId}") // E17
-    data object EventDetail : Routes("event_detail/{eventId}") {
-        fun build(eventId: String) = "event_detail/$eventId"
+    data object CriticalAlert : Routes("critical_alert/{eventId}") { // E17
+        fun build(eventId: String) = "critical_alert/${Uri.encode(eventId)}"
     }
-    data object SupportGuide : Routes("support_guide/{eventId}") { // E18
-        fun build(eventId: String) = "support_guide/$eventId"
+    data object EventDetail : Routes("event_detail/{patientId}/{eventId}") {
+        fun build(patientId: String, eventId: String) =
+            "event_detail/${Uri.encode(patientId)}/${Uri.encode(eventId)}"
     }
+    data object SupportGuide : Routes("support_guide") // E18: contenido editorial, no depende del evento
 }

@@ -25,6 +25,8 @@ import androidx.navigation.compose.rememberNavController
 import com.anxietywatch.mobile.data.remote.SessionExpiryNotifier
 import com.anxietywatch.mobile.data.remote.SessionRepository
 import com.anxietywatch.mobile.service.MonitoringForegroundService
+import com.anxietywatch.mobile.push.CaregiverAlertPayload
+import com.anxietywatch.mobile.ui.alerts.CriticalAlertUiModel
 import com.anxietywatch.mobile.ui.dashboard.DashboardCaregiverScreen
 import com.anxietywatch.mobile.ui.alerts.CriticalAlertScreen
 import com.anxietywatch.mobile.ui.crisis.CrisisActiveScreen
@@ -53,11 +55,14 @@ import kotlinx.coroutines.launch
 fun AnxietyWatchNavHost(
     sessionRepository: SessionRepository,
     sessionExpiryNotifier: SessionExpiryNotifier,
+    criticalAlertPayload: CaregiverAlertPayload? = null,
+    onCriticalAlertConsumed: () -> Unit = {},
     navController: NavHostController = rememberNavController(),
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var showExpiredBanner by remember { mutableStateOf(false) }
+    var activeCriticalAlert by remember { mutableStateOf<CaregiverAlertPayload?>(null) }
 
     LaunchedEffect(sessionExpiryNotifier, navController) {
         sessionExpiryNotifier.events.collect {
@@ -69,16 +74,37 @@ fun AnxietyWatchNavHost(
         }
     }
 
+    LaunchedEffect(criticalAlertPayload, navController) {
+        val payload = criticalAlertPayload ?: return@LaunchedEffect
+        val currentRoute = navController.currentDestination?.route ?: return@LaunchedEffect
+        if (currentRoute == Routes.Splash.route) return@LaunchedEffect
+
+        val canOpenAlert = sessionRepository.hasValidSession() &&
+            sessionRepository.roleFlow.first().equals("family_member", ignoreCase = true)
+        if (canOpenAlert) {
+            activeCriticalAlert = payload
+            navController.navigate(Routes.CriticalAlert.build(payload.eventId))
+        }
+        onCriticalAlertConsumed()
+    }
+
     NavHost(navController = navController, startDestination = Routes.Splash.route) {
         composable(Routes.Splash.route) {
             SplashScreen {
                 scope.launch {
                     val destination = if (sessionRepository.hasValidSession()) {
                         MonitoringForegroundService.start(context)
-                        roleDestination(sessionRepository.roleFlow.first())
+                        val role = sessionRepository.roleFlow.first()
+                        if (role.equals("family_member", ignoreCase = true) && criticalAlertPayload != null) {
+                            activeCriticalAlert = criticalAlertPayload
+                            Routes.CriticalAlert.build(criticalAlertPayload.eventId)
+                        } else {
+                            roleDestination(role)
+                        }
                     } else {
                         Routes.TokenEntry.route
                     }
+                    if (criticalAlertPayload != null) onCriticalAlertConsumed()
                     navController.navigate(destination) {
                         popUpTo(Routes.Splash.route) { inclusive = true }
                     }
@@ -206,25 +232,43 @@ fun AnxietyWatchNavHost(
         }
         composable(Routes.ManageWatch.route) { ManageWatchScreen() }
         composable(Routes.PatientDetail.route) { backStackEntry ->
+            val patientId = backStackEntry.arguments?.getString("patientId").orEmpty()
             PatientDetailScreen(
-                patientId = backStackEntry.arguments?.getString("patientId").orEmpty(),
-                onEventClick = { eventId -> navController.navigate(Routes.EventDetail.build(eventId)) },
+                patientId = patientId,
+                onEventClick = { eventId ->
+                    navController.navigate(Routes.EventDetail.build(patientId, eventId))
+                },
             )
         }
         composable(Routes.CriticalAlert.route) { backStackEntry ->
             val eventId = backStackEntry.arguments?.getString("eventId").orEmpty()
             CriticalAlertScreen(
                 eventId = eventId,
-                onViewGuide = { navController.navigate(Routes.SupportGuide.build(eventId)) },
-                onDismiss = { navController.popBackStack() },
+                initialAlert = activeCriticalAlert
+                    ?.takeIf { it.eventId == eventId }
+                    ?.let {
+                        CriticalAlertUiModel(
+                            patientName = it.patientName,
+                            message = it.alertMessage,
+                            location = it.location,
+                            emergencyPhone = it.emergencyPhone,
+                        )
+                    },
+                onViewGuide = { navController.navigate(Routes.SupportGuide.route) },
+                onDismiss = {
+                    activeCriticalAlert = null
+                    navController.popBackStack()
+                },
             )
         }
         composable(Routes.EventDetail.route) { backStackEntry ->
-            EventDetailScreen(eventId = backStackEntry.arguments?.getString("eventId").orEmpty())
-        }
-        composable(Routes.SupportGuide.route) { backStackEntry ->
-            SupportGuideScreen(
+            EventDetailScreen(
+                patientId = backStackEntry.arguments?.getString("patientId").orEmpty(),
                 eventId = backStackEntry.arguments?.getString("eventId").orEmpty(),
+            )
+        }
+        composable(Routes.SupportGuide.route) {
+            SupportGuideScreen(
                 onFinished = { navController.popBackStack() },
             )
         }
