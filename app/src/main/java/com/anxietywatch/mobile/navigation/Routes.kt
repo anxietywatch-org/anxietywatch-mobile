@@ -16,6 +16,7 @@ sealed class Routes(val route: String) {
     data object DashboardCaregiver : Routes("dashboard_caregiver") // E14
     data object CaregiverPatients : Routes("caregiver_patients")
     data object CaregiverAlerts : Routes("caregiver_alerts")
+    data object CaregiverProfile : Routes("caregiver_profile")
     data object CaregiverAlertDetail : Routes("caregiver_alert_detail/{alertId}") {
         fun build(alertId: String) = "caregiver_alert_detail/$alertId"
     }

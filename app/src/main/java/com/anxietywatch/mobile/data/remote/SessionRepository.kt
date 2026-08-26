@@ -14,6 +14,17 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
+data class SessionProfile(
+    val displayName: String? = null,
+    val email: String? = null,
+    val role: String? = null,
+)
+
+interface CaregiverSessionSource {
+    val profileFlow: Flow<SessionProfile>
+    suspend fun clearSession()
+}
+
 /**
  * El JWT y su expiracion viven en [SecureTokenStore] (cifrado con AES-256, Android
  * Keystore) -- NUNCA en este DataStore normal. Aqui solo va lo que no es sensible por si
@@ -26,24 +37,44 @@ import javax.inject.Singleton
 class SessionRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>,
     private val secureTokenStore: SecureTokenStore,
-) {
+) : CaregiverSessionSource {
     private val roleKey = stringPreferencesKey("user_role")
     private val deviceIdKey = stringPreferencesKey("mobile_device_id")
+    private val displayNameKey = stringPreferencesKey("session_display_name")
+    private val emailKey = stringPreferencesKey("session_email")
 
     val roleFlow: Flow<String?> = dataStore.data.map { it[roleKey] }
+
+    override val profileFlow: Flow<SessionProfile> = dataStore.data.map {
+        SessionProfile(it[displayNameKey], it[emailKey], it[roleKey])
+    }
 
     /** Lectura sincrona a proposito: la usa AuthInterceptor en cada request de red, donde
      *  no conviene depender de un Flow suspendible dentro de un interceptor de OkHttp. */
     fun currentToken(): String? = secureTokenStore.getToken()
 
-    suspend fun saveSession(jwt: String, role: String, expiresAt: String) {
+    suspend fun saveSession(
+        jwt: String,
+        role: String,
+        expiresAt: String,
+        displayName: String? = null,
+        email: String? = null,
+    ) {
         secureTokenStore.saveToken(jwt, expiresAt)
-        dataStore.edit { it[roleKey] = role }
+        dataStore.edit {
+            it[roleKey] = role
+            if (displayName.isNullOrBlank()) it.remove(displayNameKey) else it[displayNameKey] = displayName
+            if (email.isNullOrBlank()) it.remove(emailKey) else it[emailKey] = email
+        }
     }
 
-    suspend fun clearSession() {
+    override suspend fun clearSession() {
         secureTokenStore.clear()
-        dataStore.edit { it.remove(roleKey) }
+        dataStore.edit {
+            it.remove(roleKey)
+            it.remove(displayNameKey)
+            it.remove(emailKey)
+        }
     }
 
     /** true si no hay sesión, si expiresAt no se puede interpretar o si ya venció. */

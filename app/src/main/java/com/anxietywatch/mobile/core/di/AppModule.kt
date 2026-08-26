@@ -9,6 +9,7 @@ import com.anxietywatch.mobile.data.remote.AnxietyWatchApi
 import com.anxietywatch.mobile.data.remote.ApiClient
 import com.anxietywatch.mobile.data.remote.SessionExpiryNotifier
 import com.anxietywatch.mobile.data.remote.SessionRepository
+import com.anxietywatch.mobile.data.remote.CaregiverSessionSource
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -32,6 +33,10 @@ object AppModule {
         sessionRepository: SessionRepository,
         sessionExpiryNotifier: SessionExpiryNotifier,
     ): AnxietyWatchApi = ApiClient.create(sessionRepository, sessionExpiryNotifier)
+
+    @Provides
+    @Singleton
+    fun provideCaregiverSessionSource(sessionRepository: SessionRepository): CaregiverSessionSource = sessionRepository
 
     @Provides
     @Singleton

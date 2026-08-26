@@ -41,6 +41,7 @@ import com.anxietywatch.mobile.ui.history.PatientHistoryScreen
 import com.anxietywatch.mobile.ui.onboarding.TokenEntryScreen
 import com.anxietywatch.mobile.ui.permissions.PermissionsScreen
 import com.anxietywatch.mobile.ui.profile.PatientProfileScreen
+import com.anxietywatch.mobile.ui.profile.CaregiverProfileScreen
 import com.anxietywatch.mobile.ui.splash.SplashScreen
 import com.anxietywatch.mobile.ui.support.SupportGuideScreen
 import com.anxietywatch.mobile.ui.settings.SettingsPatientScreen
@@ -165,6 +166,7 @@ fun AnxietyWatchNavHost(
                 },
                 onViewAllPatientsClick = { navController.navigate(Routes.CaregiverPatients.route) },
                 onViewAlertsClick = { navController.navigate(Routes.CaregiverAlerts.route) },
+                onViewProfileClick = { navController.navigate(Routes.CaregiverProfile.route) },
             )
         }
         composable(Routes.CaregiverPatients.route) {
@@ -184,6 +186,17 @@ fun AnxietyWatchNavHost(
             CaregiverAlertDetailScreen(
                 alertId = backStackEntry.arguments?.getString("alertId").orEmpty(),
                 onBack = { navController.popBackStack() },
+            )
+        }
+        composable(Routes.CaregiverProfile.route) {
+            CaregiverProfileScreen(
+                onBack = { navController.popBackStack() },
+                onLogoutSuccess = {
+                    MonitoringForegroundService.stop(context)
+                    navController.navigate(Routes.TokenEntry.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
             )
         }
 

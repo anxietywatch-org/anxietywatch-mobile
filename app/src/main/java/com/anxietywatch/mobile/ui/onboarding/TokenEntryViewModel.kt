@@ -64,7 +64,13 @@ class TokenEntryViewModel @Inject constructor(
                 val deviceId = sessionRepository.mobileDeviceId()
                 api.acceptByCode(AcceptByCodeRequest(code = sanitized, deviceId = deviceId))
             }.onSuccess { response ->
-                sessionRepository.saveSession(response.token, response.role, response.expiresAt)
+                sessionRepository.saveSession(
+                    jwt = response.token,
+                    role = response.role,
+                    expiresAt = response.expiresAt,
+                    displayName = response.user.fullName,
+                    email = response.user.email,
+                )
                 _uiState.update { TokenEntryUiState.Success(role = response.role) }
             }.onFailure { error ->
                 val message = when {
