@@ -7,6 +7,8 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.anxietywatch.mobile.data.remote.isValidWearableDeviceId
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import java.util.UUID
 import javax.inject.Inject
@@ -22,6 +24,10 @@ class MonitoringSessionContext @Inject constructor(
     private val dataStore: DataStore<Preferences>,
 ) {
     private val deviceIdKey = stringPreferencesKey("paired_device_id")
+    private val wearNodeIdKey = stringPreferencesKey("last_known_wear_node_id")
+    private val pendingPairingNonceKey = stringPreferencesKey("pending_pairing_nonce")
+    private val pendingPairingNodeKey = stringPreferencesKey("pending_pairing_node_id")
+    private val pendingPairingStartedAtKey = longPreferencesKey("pending_pairing_started_at")
     private val sessionIdKey = stringPreferencesKey("monitoring_session_id")
     private val sessionStartedAtKey = longPreferencesKey("monitoring_session_started_at")
     private val sequenceKey = longPreferencesKey("telemetry_sequence")
@@ -30,12 +36,82 @@ class MonitoringSessionContext @Inject constructor(
 
     /** Se llama una vez, en el flujo de "Vincular reloj" (E15/vinculación por código). */
     suspend fun setPairedDeviceId(deviceId: String) {
+        require(isValidWearableDeviceId(deviceId)) { "Invalid wearable device id" }
         dataStore.edit { it[deviceIdKey] = deviceId }
     }
 
     fun pairedDeviceId(): String? = runBlocking {
         dataStore.data.first()[deviceIdKey]
     }.takeIf(::isValidWearableDeviceId)
+
+    val pairedDeviceIdFlow: Flow<String?> = dataStore.data.map { preferences ->
+        preferences[deviceIdKey]?.takeIf(::isValidWearableDeviceId)
+    }
+
+    fun lastKnownWearNodeId(): String? = runBlocking {
+        dataStore.data.first()[wearNodeIdKey]
+    }?.takeIf(String::isNotBlank)
+
+    fun hasPendingPairing(): Boolean = runBlocking {
+        val preferences = dataStore.data.first()
+        PairingPolicy.isFresh(preferences[pendingPairingStartedAtKey], System.currentTimeMillis()) &&
+            PairingPolicy.isValidUuid(preferences[pendingPairingNonceKey]) &&
+            !preferences[pendingPairingNodeKey].isNullOrBlank()
+    }
+
+    suspend fun beginPairing(nodeId: String): String {
+        require(nodeId.isNotBlank()) { "Pairing node must not be blank" }
+        val nonce = UUID.randomUUID().toString()
+        dataStore.edit {
+            it[pendingPairingNonceKey] = nonce
+            it[pendingPairingNodeKey] = nodeId
+            it[pendingPairingStartedAtKey] = System.currentTimeMillis()
+        }
+        return nonce
+    }
+
+    suspend fun completePairing(sourceNodeId: String, nonce: String, deviceId: String): Boolean {
+        if (!isValidWearableDeviceId(deviceId)) return false
+        val snapshot = dataStore.data.first()
+        val matches = PairingPolicy.acceptsIdentity(
+            pending = PendingPairingSnapshot(
+                nonce = snapshot[pendingPairingNonceKey],
+                nodeId = snapshot[pendingPairingNodeKey],
+                startedAtMillis = snapshot[pendingPairingStartedAtKey],
+            ),
+            sourceNodeId = sourceNodeId,
+            nonce = nonce,
+            wearableDeviceId = deviceId,
+            nowMillis = System.currentTimeMillis(),
+        )
+        if (!matches) return false
+        dataStore.edit { preferences ->
+            preferences[deviceIdKey] = deviceId
+            preferences[wearNodeIdKey] = sourceNodeId
+            preferences.remove(pendingPairingNonceKey)
+            preferences.remove(pendingPairingNodeKey)
+            preferences.remove(pendingPairingStartedAtKey)
+        }
+        return true
+    }
+
+    suspend fun clearPairing() {
+        dataStore.edit {
+            it.remove(deviceIdKey)
+            it.remove(wearNodeIdKey)
+            it.remove(pendingPairingNonceKey)
+            it.remove(pendingPairingNodeKey)
+            it.remove(pendingPairingStartedAtKey)
+        }
+    }
+
+    suspend fun clearPendingPairing() {
+        dataStore.edit {
+            it.remove(pendingPairingNonceKey)
+            it.remove(pendingPairingNodeKey)
+            it.remove(pendingPairingStartedAtKey)
+        }
+    }
 
     /**
      * Una "sesión de monitoreo" agrupa lotes de telemetría entre aperturas de la app/servicio.

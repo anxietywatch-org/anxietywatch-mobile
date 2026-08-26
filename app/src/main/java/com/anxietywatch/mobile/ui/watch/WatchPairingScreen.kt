@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Watch
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +32,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,7 +52,12 @@ fun WatchPairingScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var selected by remember { mutableStateOf<NearbyWatch?>(null) }
-    val devices = (state as? WatchPairingUiState.Success)?.devices.orEmpty()
+    var showReplaceDialog by remember { mutableStateOf(false) }
+    val devices = (state as? WatchPairingUiState.Ready)?.devices.orEmpty()
+
+    LaunchedEffect(state) {
+        if (state is WatchPairingUiState.Paired) onConnected()
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
         Text("Vincular reloj", style = MaterialTheme.typography.headlineLarge)
@@ -77,14 +84,38 @@ fun WatchPairingScreen(
                 }
             }
         }
-        Button(onClick = onConnected, enabled = selected != null, modifier = Modifier.fillMaxWidth()) {
-            Text("Conectar dispositivo")
+        Button(
+            onClick = {
+                selected?.let { device ->
+                    if (viewModel.hasExistingPairing()) showReplaceDialog = true
+                    else viewModel.pairSelected(device)
+                }
+            },
+            enabled = selected != null && state !is WatchPairingUiState.Pairing,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(if (state is WatchPairingUiState.Pairing) "Vinculando..." else "Conectar dispositivo")
         }
         TextButton(onClick = onSkip, modifier = Modifier.fillMaxWidth()) { Text("Conectar después") }
         Text(
             "Asegúrate de que tu reloj esté en modo de emparejamiento y cerca del teléfono.",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    if (showReplaceDialog) {
+        AlertDialog(
+            onDismissRequest = { showReplaceDialog = false },
+            title = { Text("¿Reemplazar reloj vinculado?") },
+            text = { Text("El reloj actual dejará de estar vinculado a este teléfono.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showReplaceDialog = false
+                    selected?.let { viewModel.pairSelected(it, replaceExisting = true) }
+                }) { Text("Reemplazar") }
+            },
+            dismissButton = { TextButton(onClick = { showReplaceDialog = false }) { Text("Cancelar") } },
         )
     }
 }

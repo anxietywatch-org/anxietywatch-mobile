@@ -62,6 +62,11 @@ class PhoneDataLayerListenerService : WearableListenerService() {
 
     override fun onMessageReceived(messageEvent: MessageEvent) {
         val path = messageEvent.path
+        if (path == PAIRING_IDENTITY_ROUTE) {
+            val payload = String(messageEvent.data, Charsets.UTF_8)
+            scope.launch { handlePairingIdentity(payload, messageEvent.sourceNodeId) }
+            return
+        }
         val eventId = when {
             path.startsWith(SOS_CANCEL_ROUTE_PREFIX) -> path.removePrefix(SOS_CANCEL_ROUTE_PREFIX)
             path.startsWith(SOS_ROUTE_PREFIX) -> path.removePrefix(SOS_ROUTE_PREFIX)
@@ -326,6 +331,16 @@ class PhoneDataLayerListenerService : WearableListenerService() {
         }
     }
 
+    private suspend fun handlePairingIdentity(rawJson: String, sourceNodeId: String) {
+        val obj = runCatching { json.parseToJsonElement(rawJson).jsonObject }.getOrNull() ?: return
+        if (obj.string("schemaVersion") != PAIRING_SCHEMA_VERSION.toString()) return
+        val nonce = obj.string("pairingNonce")?.takeIf(PairingPolicy::isValidUuid) ?: return
+        val wearableDeviceId = obj.string("wearableDeviceId")?.takeIf(PairingPolicy::isValidUuid) ?: return
+        if (!sessionContext.completePairing(sourceNodeId, nonce, wearableDeviceId)) {
+            Log.w(TAG, "Rejected unsolicited or mismatched wearable pairing identity")
+        }
+    }
+
     private fun logRouteIdMismatch(kind: String) {
         if (BuildConfig.DEBUG) {
             Log.d(TAG, "Rejected $kind envelope: route/payload ID mismatch")
@@ -421,6 +436,9 @@ class PhoneDataLayerListenerService : WearableListenerService() {
         const val ACK_SOS_CANCEL_PREFIX = "/fog/v1/ack/sos-cancel/"
         const val ACK_SUSPECTED_PREFIX = "/fog/v1/ack/events/suspected/"
         const val ACK_DECISION_PREFIX = "/fog/v1/ack/events/decision/"
+        const val PAIRING_IDENTITY_ROUTE = "/fog/v1/pairing/identity"
+        const val PAIRING_SCHEMA_VERSION = 1
+
     }
 }
 
