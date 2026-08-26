@@ -13,7 +13,6 @@ import androidx.core.content.ContextCompat
 import com.anxietywatch.mobile.MainActivity
 import com.anxietywatch.mobile.R
 import com.anxietywatch.mobile.data.remote.AnxietyWatchApi
-import com.anxietywatch.mobile.data.remote.RegisterDeviceRequest
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import dagger.hilt.android.AndroidEntryPoint
@@ -43,7 +42,10 @@ class CaregiverPushService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         scope.launch {
             runCatching {
-                api.registerDevice(RegisterDeviceRequest(platform = "android", token = token))
+                PushTokenRegistrar.register(api, token)
+            }.onSuccess {
+                // TODO: quitar este log de diagnóstico temporal.
+                Log.d("PushDebug", "Dispositivo registrado correctamente para push.")
             }.onFailure { error ->
                 Log.e(TAG, "No se pudo registrar el dispositivo para notificaciones.", error)
             }
@@ -51,6 +53,12 @@ class CaregiverPushService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
+        // TODO: quitar este log de diagnóstico temporal.
+        Log.d(
+            "PushDebug",
+            "Push recibido. data=${message.data} " +
+                "notification=${message.notification?.title}/${message.notification?.body}",
+        )
         createNotificationChannel()
 
         val eventId = message.data[EVENT_ID_KEY]?.trim()?.takeIf { it.isNotEmpty() }

@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import com.anxietywatch.mobile.core.theme.AnxietyWatchTheme
 import com.anxietywatch.mobile.data.remote.SessionExpiryNotifier
 import com.anxietywatch.mobile.data.remote.SessionRepository
+import com.anxietywatch.mobile.data.remote.AnxietyWatchApi
 import com.anxietywatch.mobile.navigation.AnxietyWatchNavHost
 import com.anxietywatch.mobile.push.CaregiverPushService
 import com.anxietywatch.mobile.push.CaregiverAlertPayload
@@ -32,6 +33,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var sessionExpiryNotifier: SessionExpiryNotifier
 
+    @Inject
+    lateinit var api: AnxietyWatchApi
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         readCriticalAlertIntent(intent)
@@ -43,6 +47,7 @@ class MainActivity : ComponentActivity() {
                     AnxietyWatchNavHost(
                         sessionRepository = sessionRepository,
                         sessionExpiryNotifier = sessionExpiryNotifier,
+                        api = api,
                         criticalAlertPayload = pendingCriticalAlertPayload,
                         onCriticalAlertConsumed = ::consumeCriticalAlertIntent,
                     )

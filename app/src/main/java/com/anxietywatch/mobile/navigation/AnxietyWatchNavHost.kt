@@ -1,5 +1,6 @@
 package com.anxietywatch.mobile.navigation
 
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,8 +25,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.anxietywatch.mobile.data.remote.SessionExpiryNotifier
 import com.anxietywatch.mobile.data.remote.SessionRepository
+import com.anxietywatch.mobile.data.remote.AnxietyWatchApi
 import com.anxietywatch.mobile.service.MonitoringForegroundService
 import com.anxietywatch.mobile.push.CaregiverAlertPayload
+import com.anxietywatch.mobile.push.PushTokenRegistrar
 import com.anxietywatch.mobile.ui.alerts.CriticalAlertUiModel
 import com.anxietywatch.mobile.ui.dashboard.DashboardCaregiverScreen
 import com.anxietywatch.mobile.ui.alerts.CriticalAlertScreen
@@ -49,12 +52,15 @@ import com.anxietywatch.mobile.ui.watch.ManageWatchScreen
 import com.anxietywatch.mobile.ui.watch.WatchPairingScreen
 import com.anxietywatch.mobile.ui.wellness.PatientDetailScreen
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import com.google.firebase.messaging.FirebaseMessaging
 
 @Composable
 fun AnxietyWatchNavHost(
     sessionRepository: SessionRepository,
     sessionExpiryNotifier: SessionExpiryNotifier,
+    api: AnxietyWatchApi,
     criticalAlertPayload: CaregiverAlertPayload? = null,
     onCriticalAlertConsumed: () -> Unit = {},
     navController: NavHostController = rememberNavController(),
@@ -94,6 +100,7 @@ fun AnxietyWatchNavHost(
                 scope.launch {
                     val destination = if (sessionRepository.hasValidSession()) {
                         MonitoringForegroundService.start(context)
+                        registerActivePushToken(api, scope)
                         val role = sessionRepository.roleFlow.first()
                         if (role.equals("family_member", ignoreCase = true) && criticalAlertPayload != null) {
                             activeCriticalAlert = criticalAlertPayload
@@ -118,6 +125,7 @@ fun AnxietyWatchNavHost(
                 onActivated = { role ->
                     showExpiredBanner = false
                     MonitoringForegroundService.start(context)
+                    registerActivePushToken(api, scope)
                     navController.navigate(permissionDestination(role)) {
                         popUpTo(Routes.TokenEntry.route) { inclusive = true }
                     }
@@ -271,6 +279,26 @@ fun AnxietyWatchNavHost(
             SupportGuideScreen(
                 onFinished = { navController.popBackStack() },
             )
+        }
+    }
+}
+
+private fun registerActivePushToken(api: AnxietyWatchApi, scope: CoroutineScope) {
+    FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+        val token = if (task.isSuccessful) task.result?.takeIf(String::isNotBlank) else null
+        if (token == null) {
+            Log.e("PushRegistration", "No se pudo obtener el token FCM activo.", task.exception)
+            return@addOnCompleteListener
+        }
+        scope.launch {
+            runCatching { PushTokenRegistrar.register(api, token) }
+                .onSuccess {
+                    // TODO: quitar este log de diagnóstico temporal.
+                    Log.d("PushRegistration", "Token activo registrado correctamente: $token")
+                }
+                .onFailure { error ->
+                    Log.e("PushRegistration", "No se pudo registrar el token FCM activo.", error)
+                }
         }
     }
 }
