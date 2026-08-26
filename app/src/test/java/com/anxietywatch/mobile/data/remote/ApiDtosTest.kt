@@ -46,6 +46,70 @@ class ApiDtosTest {
         assertEquals("family_member", response.user.role)
     }
 
+    @Test
+    fun wearableResponsesUseAcceptedAndDuplicateContract() {
+        val telemetry = json.decodeFromString<TelemetryBatchAckResponse>("""
+            { "batchId": "batch-1", "accepted": true, "duplicate": false }
+        """)
+        val sos = json.decodeFromString<SosTriggerResponse>("""
+            { "eventId": "event-1", "accepted": false, "duplicate": true }
+        """)
+        val cancel = json.decodeFromString<SosCancelResponse>("""
+            { "eventId": "event-1", "accepted": true, "duplicate": false }
+        """)
+        val suspected = json.decodeFromString<WearableEventResponse>("""
+            { "eventId": "event-2", "accepted": true, "duplicate": false }
+        """)
+        val decision = json.decodeFromString<WearableEventResponse>("""
+            { "eventId": "event-3", "accepted": false, "duplicate": true }
+        """)
+
+        assertEquals("batch-1", telemetry.batchId)
+        assertEquals(true, telemetry.accepted)
+        assertEquals(false, telemetry.duplicate)
+        assertEquals("event-1", sos.eventId)
+        assertEquals(false, sos.accepted)
+        assertEquals(true, sos.duplicate)
+        assertEquals("event-1", cancel.eventId)
+        assertEquals("event-2", suspected.eventId)
+        assertEquals("event-3", decision.eventId)
+    }
+
+    @Test
+    fun duplicateSubmissionIsDeliveredOnlyWhenResponseIdMatches() {
+        assertEquals(true, isWearableSubmissionDelivered("event-1", "event-1", false, true))
+        assertEquals(true, isWearableSubmissionDelivered("event-1", "event-1", true, false))
+        assertEquals(false, isWearableSubmissionDelivered("event-1", "event-1", false, false))
+        assertEquals(false, isWearableSubmissionDelivered("event-1", "event-2", true, false))
+    }
+
+    @Test
+    fun routeAndPayloadIdsMustMatchForEveryWearOperation() {
+        assertEquals(true, responseIdMatches("batch-1", "batch-1"))
+        assertEquals(false, responseIdMatches("batch-1", "batch-2"))
+        assertEquals(false, responseIdMatches("sos-1", "sos-2"))
+        assertEquals(false, responseIdMatches("cancel-1", "cancel-2"))
+        assertEquals(false, responseIdMatches("suspected-1", "suspected-2"))
+        assertEquals(false, responseIdMatches("decision-1", "decision-2"))
+    }
+
+    @Test
+    fun wearableRequestsKeepNullableUserIdAndIbi() {
+        val sample = TelemetrySampleDto(timestamp = "2026-08-26T00:00:00Z")
+        val request = CreateTelemetryBatchRequest(
+            batchId = "batch-1",
+            deviceId = "device-1",
+            sessionId = "session-1",
+            startedAt = sample.timestamp,
+            endedAt = sample.timestamp,
+            sequence = 1,
+            samples = listOf(sample),
+        )
+
+        assertNull(request.userId)
+        assertNull(request.samples.single().ibiMs)
+    }
+
     private companion object {
         const val sessionJson = """
             {

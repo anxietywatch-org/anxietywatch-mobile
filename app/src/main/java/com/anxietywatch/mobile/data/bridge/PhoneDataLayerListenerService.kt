@@ -2,6 +2,7 @@ package com.anxietywatch.mobile.data.bridge
 
 import android.net.Uri
 import android.util.Log
+import com.anxietywatch.mobile.BuildConfig
 import com.anxietywatch.mobile.data.local.AppDatabase
 import com.anxietywatch.mobile.data.local.PendingEventDecisionEntity
 import com.anxietywatch.mobile.data.local.PendingSosCancelEventEntity
@@ -20,6 +21,8 @@ import com.anxietywatch.mobile.data.remote.SuspectedEventFeaturesRequest
 import com.anxietywatch.mobile.data.remote.SuspectedEventRequest
 import com.anxietywatch.mobile.data.remote.TelemetrySampleDto
 import com.anxietywatch.mobile.data.remote.TriggerSosRequest
+import com.anxietywatch.mobile.data.remote.isWearableSubmissionDelivered
+import com.anxietywatch.mobile.data.remote.responseIdMatches
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
@@ -100,7 +103,12 @@ class PhoneDataLayerListenerService : WearableListenerService() {
 
     private suspend fun handleSos(rawJson: String, routeEventId: String, sourceNodeId: String) {
         val obj = parseEnvelope(rawJson, SOS_SCHEMA) ?: return
-        val eventId = obj.string("eventId") ?: routeEventId
+        val payloadEventId = obj.string("eventId") ?: return
+        if (!responseIdMatches(routeEventId, payloadEventId)) {
+            logRouteIdMismatch("SOS")
+            return
+        }
+        val eventId = payloadEventId
         val request = TriggerSosRequest(
             eventId = eventId,
             deviceId = sessionContext.pairedDeviceId(),
@@ -113,7 +121,11 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             PendingSosEventEntity(eventId, json.encodeToString(request), System.currentTimeMillis()),
         )
         runCatching { api.triggerSos(request) }
-            .onSuccess {
+            .onSuccess { response ->
+                if (!isWearableSubmissionDelivered(request.eventId, response.eventId, response.accepted, response.duplicate)) {
+                    Log.w(TAG, "Respuesta SOS no entregada; se conserva pendiente")
+                    return@onSuccess
+                }
                 database.pendingUploadDao().updateSosEventStatus(eventId, SyncStatus.SYNCED)
                 sendEventAck(sourceNodeId, "$ACK_SOS_PREFIX$eventId")
             }
@@ -122,7 +134,12 @@ class PhoneDataLayerListenerService : WearableListenerService() {
 
     private suspend fun handleSosCancel(rawJson: String, routeEventId: String, sourceNodeId: String) {
         val obj = parseEnvelope(rawJson, SOS_SCHEMA) ?: return
-        val eventId = obj.string("eventId") ?: routeEventId
+        val payloadEventId = obj.string("eventId") ?: return
+        if (!responseIdMatches(routeEventId, payloadEventId)) {
+            logRouteIdMismatch("SOS_CANCEL")
+            return
+        }
+        val eventId = payloadEventId
         val request = SosCancelRequest(
             eventId = eventId,
             deviceId = sessionContext.pairedDeviceId(),
@@ -134,7 +151,11 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             PendingSosCancelEventEntity(eventId, json.encodeToString(request), System.currentTimeMillis()),
         )
         runCatching { api.cancelSos(request) }
-            .onSuccess {
+            .onSuccess { response ->
+                if (!isWearableSubmissionDelivered(request.eventId, response.eventId, response.accepted, response.duplicate)) {
+                    Log.w(TAG, "Respuesta de cancelación no entregada; se conserva pendiente")
+                    return@onSuccess
+                }
                 database.pendingUploadDao().updateSosCancelEventStatus(eventId, SyncStatus.SYNCED)
                 sendEventAck(sourceNodeId, "$ACK_SOS_CANCEL_PREFIX$eventId")
             }
@@ -143,7 +164,12 @@ class PhoneDataLayerListenerService : WearableListenerService() {
 
     private suspend fun handleSuspected(rawJson: String, routeEventId: String, sourceNodeId: String) {
         val obj = parseEnvelope(rawJson, SUSPECTED_SCHEMA) ?: return
-        val eventId = obj.string("eventId") ?: routeEventId
+        val payloadEventId = obj.string("eventId") ?: return
+        if (!responseIdMatches(routeEventId, payloadEventId)) {
+            logRouteIdMismatch("SUSPECTED")
+            return
+        }
+        val eventId = payloadEventId
         val features = obj["features"]?.let { runCatching { it.jsonObject }.getOrNull() } ?: return
         val baseline = obj["baseline"]?.let { runCatching { it.jsonObject }.getOrNull() } ?: return
         val request = SuspectedEventRequest(
@@ -180,7 +206,11 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             PendingSuspectedEventEntity(eventId, json.encodeToString(request), System.currentTimeMillis()),
         )
         runCatching { api.submitSuspectedEvent(request) }
-            .onSuccess {
+            .onSuccess { response ->
+                if (!isWearableSubmissionDelivered(request.eventId, response.eventId, response.accepted, response.duplicate)) {
+                    Log.w(TAG, "Respuesta de evento no entregada; se conserva pendiente")
+                    return@onSuccess
+                }
                 database.pendingUploadDao().updateSuspectedEventStatus(eventId, SyncStatus.SYNCED)
                 sendEventAck(sourceNodeId, "$ACK_SUSPECTED_PREFIX$eventId")
             }
@@ -189,7 +219,12 @@ class PhoneDataLayerListenerService : WearableListenerService() {
 
     private suspend fun handleDecision(rawJson: String, routeEventId: String, sourceNodeId: String) {
         val obj = parseEnvelope(rawJson, DECISION_SCHEMA) ?: return
-        val eventId = obj.string("eventId") ?: routeEventId
+        val payloadEventId = obj.string("eventId") ?: return
+        if (!responseIdMatches(routeEventId, payloadEventId)) {
+            logRouteIdMismatch("DECISION")
+            return
+        }
+        val eventId = payloadEventId
         val request = EventDecisionRequest(
             eventId = eventId,
             deviceId = sessionContext.pairedDeviceId(),
@@ -204,7 +239,11 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             PendingEventDecisionEntity(eventId, json.encodeToString(request), System.currentTimeMillis()),
         )
         runCatching { api.submitEventDecision(request) }
-            .onSuccess {
+            .onSuccess { response ->
+                if (!isWearableSubmissionDelivered(request.eventId, response.eventId, response.accepted, response.duplicate)) {
+                    Log.w(TAG, "Respuesta de decisión no entregada; se conserva pendiente")
+                    return@onSuccess
+                }
                 database.pendingUploadDao().updateEventDecisionStatus(eventId, SyncStatus.SYNCED)
                 sendEventAck(sourceNodeId, "$ACK_DECISION_PREFIX$eventId")
             }
@@ -213,7 +252,12 @@ class PhoneDataLayerListenerService : WearableListenerService() {
 
     private suspend fun handleTelemetryBatch(rawJson: String, routeBatchId: String, sourceNodeId: String) {
         val obj = parseEnvelope(rawJson, TELEMETRY_SCHEMA) ?: return
-        val batchId = obj.string("batchId") ?: routeBatchId
+        val payloadBatchId = obj.string("batchId") ?: return
+        if (!responseIdMatches(routeBatchId, payloadBatchId)) {
+            logRouteIdMismatch("TELEMETRY")
+            return
+        }
+        val batchId = payloadBatchId
         val records = obj["records"]?.jsonArray ?: JsonArray(emptyList())
         val samplesByTimestamp = linkedMapOf<Long, MutableTelemetrySample>()
 
@@ -251,7 +295,11 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             PendingTelemetryBatchEntity(batchId, json.encodeToString(request), System.currentTimeMillis()),
         )
         runCatching { api.sendTelemetryBatch(request) }
-            .onSuccess {
+            .onSuccess { response ->
+                if (!isWearableSubmissionDelivered(request.batchId, response.batchId, response.accepted, response.duplicate)) {
+                    Log.w(TAG, "Respuesta de telemetría no entregada; se conserva pendiente")
+                    return@onSuccess
+                }
                 database.pendingUploadDao().updateTelemetryBatchStatus(batchId, SyncStatus.SYNCED)
                 sendTelemetryAck(sourceNodeId, batchId)
             }
@@ -264,6 +312,12 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             Log.i(TAG, "Reloj compatible detectado")
         } else {
             Log.w(TAG, "Capabilities de reloj no compatibles")
+        }
+    }
+
+    private fun logRouteIdMismatch(kind: String) {
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "Rejected $kind envelope: route/payload ID mismatch")
         }
     }
 

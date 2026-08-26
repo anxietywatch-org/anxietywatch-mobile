@@ -46,12 +46,11 @@ data class CreateTelemetryBatchRequest(
     val samples: List<TelemetrySampleDto>,
 )
 
-// El backend responde 202 (lote nuevo) o 200 (duplicado, idempotente) — Retrofit trata
-// ambos como éxito por igual, así que no hace falta distinguirlos en el DTO.
 @Serializable
 data class TelemetryBatchAckResponse(
-    val batchId: String? = null,
-    val status: String? = null,
+    val batchId: String,
+    val accepted: Boolean,
+    val duplicate: Boolean,
 )
 
 // --- SOS ---
@@ -68,8 +67,9 @@ data class TriggerSosRequest(
 
 @Serializable
 data class SosTriggerResponse(
-    val eventId: String? = null,
-    val status: String? = null,
+    val eventId: String,
+    val accepted: Boolean,
+    val duplicate: Boolean,
 )
 
 // --- Auth (register/login/session — ya viven en producción) ---
@@ -156,8 +156,9 @@ data class SosCancelRequest(
 
 @Serializable
 data class SosCancelResponse(
-    val eventId: String? = null,
-    val status: String? = null,
+    val eventId: String,
+    val accepted: Boolean,
+    val duplicate: Boolean,
 )
 
 @Serializable
@@ -212,9 +213,19 @@ data class EventDecisionRequest(
 
 @Serializable
 data class WearableEventResponse(
-    val eventId: String? = null,
-    val status: String? = null,
+    val eventId: String,
+    val accepted: Boolean,
+    val duplicate: Boolean,
 )
+
+internal fun isWearableSubmissionDelivered(
+    expectedId: String,
+    responseId: String,
+    accepted: Boolean,
+    duplicate: Boolean,
+): Boolean = responseIdMatches(expectedId, responseId) && (accepted || duplicate)
+
+internal fun responseIdMatches(routeId: String, payloadId: String): Boolean = routeId == payloadId
 
 // --- Perfil, dashboard y episodios (contrato confirmado en backend) ---
 
