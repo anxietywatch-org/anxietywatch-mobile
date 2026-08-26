@@ -1,5 +1,6 @@
 package com.anxietywatch.mobile.data.remote
 
+import android.util.Log
 import com.anxietywatch.mobile.BuildConfig
 import kotlinx.serialization.json.Json
 import okhttp3.Interceptor
@@ -53,6 +54,26 @@ class SessionExpiryInterceptor(
     }
 }
 
+private class DebugHttpObservabilityInterceptor : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+        val startedAt = System.nanoTime()
+        val response = chain.proceed(request)
+        if (BuildConfig.DEBUG) {
+            val durationMs = (System.nanoTime() - startedAt) / 1_000_000
+            Log.d(
+                TAG,
+                "HTTP ${request.method} ${request.url.encodedPath} -> ${response.code} (${durationMs}ms)",
+            )
+        }
+        return response
+    }
+
+    private companion object {
+        const val TAG = "AnxietyWatchHttp"
+    }
+}
+
 object ApiClient {
 
     private val json = Json {
@@ -76,7 +97,7 @@ object ApiClient {
             }
         }
 
-        val client = OkHttpClient.Builder()
+        val clientBuilder = OkHttpClient.Builder()
             .addInterceptor(AuthInterceptor { sessionRepository.currentToken() })
             .addInterceptor(
                 SessionExpiryInterceptor {
@@ -84,6 +105,10 @@ object ApiClient {
                     sessionExpiryNotifier.notifyExpired()
                 },
             )
+        if (BuildConfig.DEBUG) {
+            clientBuilder.addInterceptor(DebugHttpObservabilityInterceptor())
+        }
+        val client = clientBuilder
             .addInterceptor(logging)
             // TODO DevSecOps: .certificatePinner(CertificatePinner.Builder()
             //     .add("api.mangoon.xyz", "sha256/EL_HASH_REAL_DEL_CERTIFICADO")

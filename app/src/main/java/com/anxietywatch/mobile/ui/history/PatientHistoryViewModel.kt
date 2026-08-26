@@ -1,5 +1,6 @@
 package com.anxietywatch.mobile.ui.history
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.anxietywatch.mobile.data.remote.AnxietyWatchApi
@@ -49,12 +50,24 @@ class PatientHistoryViewModel @Inject constructor(
     }
 
     private fun loadHistoryInternal(isRefresh: Boolean) {
-        if (!isRefresh) _uiState.update { PatientHistoryUiState.Loading }
+        if (!isRefresh) {
+            Log.d(TAG, "PatientHistory state=LOADING refreshing=false")
+            _uiState.update { PatientHistoryUiState.Loading }
+        } else {
+            val count = (_uiState.value as? PatientHistoryUiState.Success)?.episodes?.size ?: 0
+            Log.d(TAG, "PatientHistory state=CONTENT count=$count refreshing=true")
+        }
         viewModelScope.launch {
             runCatching { api.getEpisodes(range = 7) }
-                .onSuccess { episodes -> _uiState.update { PatientHistoryUiState.Success(episodes) } }
+                .onSuccess { episodes ->
+                    val state = if (episodes.isEmpty()) "EMPTY" else "CONTENT"
+                    Log.d(TAG, "PatientHistory state=$state count=${episodes.size} refreshing=false")
+                    _uiState.update { PatientHistoryUiState.Success(episodes) }
+                }
                 .onFailure { error ->
                     if (isRefresh && _uiState.value is PatientHistoryUiState.Success) {
+                        val count = (_uiState.value as PatientHistoryUiState.Success).episodes.size
+                        Log.d(TAG, "PatientHistory state=CONTENT count=$count refreshing=false refreshError=true")
                         _uiState.update { state ->
                             (state as PatientHistoryUiState.Success).copy(
                                 refreshing = false,
@@ -68,8 +81,13 @@ class PatientHistoryViewModel @Inject constructor(
                     } else {
                         "No pudimos cargar tu historial. Revisa tu conexión e inténtalo de nuevo."
                     }
+                    Log.d(TAG, "PatientHistory state=ERROR refreshing=$isRefresh")
                     _uiState.update { PatientHistoryUiState.Error(message) }
                 }
         }
+    }
+
+    private companion object {
+        const val TAG = "AnxietyWatchUi"
     }
 }

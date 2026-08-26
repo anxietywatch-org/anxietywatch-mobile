@@ -1,5 +1,6 @@
 package com.anxietywatch.mobile.ui.profile
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.anxietywatch.mobile.data.local.FrontendPreferencesStore
@@ -60,10 +61,12 @@ class PatientProfileViewModel @Inject constructor(
     }
 
     fun loadProfile() {
+        Log.d(TAG, "PatientProfile state=LOADING")
         _uiState.update { PatientProfileUiState.Loading }
         viewModelScope.launch {
             runCatching { api.getProfile() }
                 .onSuccess {
+                    Log.d(TAG, "PatientProfile state=CONTENT")
                     _profile.value = it
                     _uiState.update { PatientProfileUiState.Loaded }
                 }
@@ -73,6 +76,7 @@ class PatientProfileViewModel @Inject constructor(
                     } else {
                         "No pudimos cargar tu perfil. Revisa tu conexión e inténtalo de nuevo."
                     }
+                    Log.d(TAG, "PatientProfile state=ERROR")
                     _uiState.update { PatientProfileUiState.LoadError(message) }
                 }
         }
@@ -124,6 +128,10 @@ class PatientProfileViewModel @Inject constructor(
                 _uiState.update { PatientProfileUiState.Error(message) }
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "AnxietyWatchUi"
     }
 }
 
