@@ -21,7 +21,7 @@ interface AnxietyWatchApi {
     suspend fun login(@Body request: LoginRequest): AuthenticationResponseDto
 
     @GET("api/auth/session")
-    suspend fun session(): UserResponseDto
+    suspend fun session(): AuthenticationResponseDto
 
     // --- Mobile / wearable (las 2 que construimos, ya en produccion) ---
     @POST("api/v1/telemetry/batch")
