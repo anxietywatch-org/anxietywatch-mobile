@@ -1,0 +1,39 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "legacy-v1",
+    "entities": [
+      {
+        "tableName": "pending_telemetry_batches",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`batchId` TEXT NOT NULL, `requestJson` TEXT NOT NULL, `createdAtMillis` INTEGER NOT NULL, `syncStatus` TEXT NOT NULL, `attemptCount` INTEGER NOT NULL, PRIMARY KEY(`batchId`))",
+        "fields": [
+          { "fieldPath": "batchId", "columnName": "batchId", "affinity": "TEXT", "notNull": true },
+          { "fieldPath": "requestJson", "columnName": "requestJson", "affinity": "TEXT", "notNull": true },
+          { "fieldPath": "createdAtMillis", "columnName": "createdAtMillis", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "syncStatus", "columnName": "syncStatus", "affinity": "TEXT", "notNull": true },
+          { "fieldPath": "attemptCount", "columnName": "attemptCount", "affinity": "INTEGER", "notNull": true }
+        ],
+        "primaryKey": { "autoGenerate": false, "columnNames": ["batchId"] },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "pending_sos_events",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`eventId` TEXT NOT NULL, `requestJson` TEXT NOT NULL, `createdAtMillis` INTEGER NOT NULL, `syncStatus` TEXT NOT NULL, `attemptCount` INTEGER NOT NULL, PRIMARY KEY(`eventId`))",
+        "fields": [
+          { "fieldPath": "eventId", "columnName": "eventId", "affinity": "TEXT", "notNull": true },
+          { "fieldPath": "requestJson", "columnName": "requestJson", "affinity": "TEXT", "notNull": true },
+          { "fieldPath": "createdAtMillis", "columnName": "createdAtMillis", "affinity": "INTEGER", "notNull": true },
+          { "fieldPath": "syncStatus", "columnName": "syncStatus", "affinity": "TEXT", "notNull": true },
+          { "fieldPath": "attemptCount", "columnName": "attemptCount", "affinity": "INTEGER", "notNull": true }
+        ],
+        "primaryKey": { "autoGenerate": false, "columnNames": ["eventId"] },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": []
+  }
+}

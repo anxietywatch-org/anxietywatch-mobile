@@ -22,7 +22,7 @@ import javax.inject.Singleton
 @Singleton
 class MonitoringSessionContext @Inject constructor(
     private val dataStore: DataStore<Preferences>,
-) {
+) : CurrentWearablePairing {
     private val deviceIdKey = stringPreferencesKey("paired_device_id")
     private val wearNodeIdKey = stringPreferencesKey("last_known_wear_node_id")
     private val pendingPairingNonceKey = stringPreferencesKey("pending_pairing_nonce")
@@ -40,7 +40,7 @@ class MonitoringSessionContext @Inject constructor(
         dataStore.edit { it[deviceIdKey] = deviceId }
     }
 
-    fun pairedDeviceId(): String? = runBlocking {
+    override fun pairedDeviceId(): String? = runBlocking {
         dataStore.data.first()[deviceIdKey]
     }.takeIf(::isValidWearableDeviceId)
 
@@ -48,7 +48,7 @@ class MonitoringSessionContext @Inject constructor(
         preferences[deviceIdKey]?.takeIf(::isValidWearableDeviceId)
     }
 
-    fun lastKnownWearNodeId(): String? = runBlocking {
+    override fun lastKnownWearNodeId(): String? = runBlocking {
         dataStore.data.first()[wearNodeIdKey]
     }?.takeIf(String::isNotBlank)
 
