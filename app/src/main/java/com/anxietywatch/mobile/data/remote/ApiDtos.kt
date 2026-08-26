@@ -135,11 +135,7 @@ data class CreateTokenRequest(
     val role: String,
 )
 
-/**
- * Endpoint AUN NO DESPLEGADO -- lo construyo yo en el backend .NET. Por codigo en vez
- * de por id interno del token, y SIN requerir sesion previa (activa la cuenta con el
- * mismo request). Ver conversacion: "Opcion A".
- */
+/** Anonymous invitation redemption request. */
 @Serializable
 data class AcceptByCodeRequest(
     val code: String,
@@ -288,4 +284,38 @@ data class EpisodeDto(
     val intensity: Int,
     val symptoms: List<String>,
     val notes: String? = null,
+)
+
+// --- Caregiver read models (backend develop @ 8218d3c) ---
+
+@Serializable
+data class CaregiverPatientResponseDto(
+    val patientId: String,
+    val fullName: String,
+    val avatarUrl: String? = null,
+    val role: String,
+    val linkedAt: String,
+)
+
+@Serializable
+data class CaregiverPatientDetailResponseDto(
+    val patientId: String,
+    val fullName: String,
+    val avatarUrl: String? = null,
+)
+
+@Serializable
+data class CaregiverEventResponseDto(
+    val eventId: String,
+    val type: String,
+    val occurredAt: String,
+    val status: String? = null,
+)
+
+@Serializable
+data class CaregiverLatestHeartRateResponseDto(
+    val heartRateBpm: Double,
+    val measuredAt: String,
+    val ageSeconds: Long,
+    val quality: String? = null,
 )

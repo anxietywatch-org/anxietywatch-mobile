@@ -4,8 +4,11 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import com.anxietywatch.mobile.data.remote.AnxietyWatchApi
+import com.anxietywatch.mobile.data.remote.CaregiverEventResponseDto
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.roundToInt
 
 data class CaregiverPatientSource(
     val id: String,
@@ -72,94 +75,50 @@ interface CaregiverRepository {
     suspend fun getAlertDetail(alertId: String): CaregiverAlertSource? = getAlerts().firstOrNull { it.id == alertId }
 }
 
-/** Temporary frontend source until a confirmed caregiver API contract exists. */
-class FakeCaregiverRepository @Inject constructor() : CaregiverRepository {
-    override suspend fun loadDashboard(): CaregiverDashboardSource = CaregiverDashboardSource(
-        patients = listOf(
-            CaregiverPatientSource(
-                id = "patient-alex",
-                displayName = "Alex",
-                bpm = 72,
-                lastUpdated = "Hace 2 min",
-                connectivity = "Conectado",
-                freshness = "Reciente",
-            ),
-            CaregiverPatientSource(
-                id = "patient-sofia",
-                displayName = "Sofía",
-                bpm = 96,
-                lastUpdated = "Hace 5 min",
-                connectivity = "Conectado",
-                freshness = "Reciente",
-            ),
-        ),
-    )
+class RealCaregiverRepository @Inject constructor(
+    private val api: AnxietyWatchApi,
+) : CaregiverRepository {
+    override suspend fun loadDashboard(): CaregiverDashboardSource =
+        CaregiverDashboardSource(
+            patients = api.getCaregiverPatients().map { patient ->
+                CaregiverPatientSource(
+                    id = patient.patientId,
+                    displayName = patient.fullName,
+                )
+            },
+        )
 
-    override suspend fun getPatientDetail(patientId: String): CaregiverPatientDetailSource? = when (patientId) {
-        "patient-alex" -> CaregiverPatientDetailSource(
-            id = "patient-alex",
-            displayName = "Alex",
-            bpm = 72,
-            anxiety = 68,
-            lastUpdated = "Hace 2 min",
-            connectivity = "Conectado",
-            freshness = "Reciente",
-            alertState = "Revisión disponible",
-            recentEvents = listOf(
-                CaregiverRecentEventSource(
-                    id = "event-alex-1",
-                    title = "Actividad reciente",
-                    description = "Registro disponible para revisión.",
-                    occurredAt = "Hoy",
-                ),
-            ),
-            recentAlerts = listOf(
-                CaregiverRecentAlertSource(
-                    id = "alert-alex-1",
-                    title = "Revisión pendiente",
-                    description = "Hay información reciente para revisar.",
-                    occurredAt = "Hoy",
-                    status = "Pendiente",
-                ),
-            ),
+    override suspend fun getPatientDetail(patientId: String): CaregiverPatientDetailSource {
+        val patient = api.getCaregiverPatientDetail(patientId)
+        val events = api.getCaregiverPatientEvents(patientId)
+        val heartRate = api.getCaregiverLatestHeartRate(patientId)
+
+        return CaregiverPatientDetailSource(
+            id = patient.patientId,
+            displayName = patient.fullName,
+            bpm = heartRate?.heartRateBpm?.roundToInt(),
+            lastUpdated = heartRate?.measuredAt,
+            recentEvents = events.map { it.toSource() },
         )
-        "patient-sofia" -> CaregiverPatientDetailSource(
-            id = "patient-sofia",
-            displayName = "Sofía",
-            bpm = 96,
-            anxiety = null,
-            lastUpdated = "Hace 5 min",
-            connectivity = "Conectado",
-            freshness = "Reciente",
-            recentEvents = emptyList(),
-            recentAlerts = emptyList(),
-        )
-        else -> null
     }
 
-    override suspend fun getAlerts(): List<CaregiverAlertSource> = listOf(
-        CaregiverAlertSource(
-            id = "alert-alex-1",
-            patientId = "patient-alex",
-            patientDisplayName = "Alex",
-            timestamp = "Hoy",
-            type = "Revisión",
-            status = "Pendiente",
-            title = "Revisión pendiente",
-            summary = "Hay información reciente para revisar.",
-            bpm = 72,
-            anxiety = 68,
-        ),
-    )
+    // Develop exposes no caregiver alert collection or alert-detail endpoint.
+    override suspend fun getAlerts(): List<CaregiverAlertSource> = emptyList()
 
-    override suspend fun getAlertDetail(alertId: String): CaregiverAlertSource? =
-        getAlerts().firstOrNull { it.id == alertId }
+    override suspend fun getAlertDetail(alertId: String): CaregiverAlertSource? = null
 }
+
+private fun CaregiverEventResponseDto.toSource() = CaregiverRecentEventSource(
+    id = eventId,
+    title = type,
+    description = status,
+    occurredAt = occurredAt,
+)
 
 @Module
 @InstallIn(SingletonComponent::class)
 object CaregiverRepositoryModule {
     @Provides
     @Singleton
-    fun provideCaregiverRepository(): CaregiverRepository = FakeCaregiverRepository()
+    fun provideCaregiverRepository(api: AnxietyWatchApi): CaregiverRepository = RealCaregiverRepository(api)
 }
