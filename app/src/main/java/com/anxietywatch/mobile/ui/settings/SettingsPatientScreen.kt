@@ -37,6 +37,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -52,6 +57,7 @@ fun SettingsPatientScreen(
     var notificationsEnabled by remember { mutableStateOf(true) }
     var soundEnabled by remember { mutableStateOf(true) }
     var caregiverDialogVisible by remember { mutableStateOf(false) }
+    var logoutDialogVisible by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
         Text("Ajustes", style = MaterialTheme.typography.headlineLarge)
@@ -102,7 +108,7 @@ fun SettingsPatientScreen(
         }
 
         Button(
-            onClick = onLogout,
+            onClick = { logoutDialogVisible = true },
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.error,
                 contentColor = MaterialTheme.colorScheme.onError,
@@ -128,6 +134,24 @@ fun SettingsPatientScreen(
             confirmButton = { TextButton(onClick = { caregiverDialogVisible = false }) { Text("Aceptar") } },
         )
     }
+    if (logoutDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { logoutDialogVisible = false },
+            title = { Text("¿Cerrar sesión?") },
+            text = { Text("Se eliminará la sesión de este dispositivo. Tus preferencias locales se conservarán.") },
+            dismissButton = {
+                TextButton(onClick = { logoutDialogVisible = false }) { Text("Cancelar") }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        logoutDialogVisible = false
+                        onLogout()
+                    },
+                ) { Text("Cerrar sesión") }
+            },
+        )
+    }
 }
 
 @Composable
@@ -142,7 +166,15 @@ private fun ToggleRow(title: String, subtitle: String, checked: Boolean, onCheck
             Text(title, style = MaterialTheme.typography.titleMedium)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = Modifier.semantics {
+                contentDescription = title
+                stateDescription = if (checked) "Activado" else "Desactivado"
+                role = Role.Switch
+            },
+        )
     }
 }
 

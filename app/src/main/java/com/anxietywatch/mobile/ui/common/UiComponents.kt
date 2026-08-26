@@ -175,7 +175,7 @@ fun PatientRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                StatusBadge(label = status)
+                StatusBadge(label = status, tone = statusToneFor(status))
             }
             heartRate?.let {
                 Text("$it BPM", style = MaterialTheme.typography.headlineSmall)
@@ -213,10 +213,25 @@ fun AlertRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                StatusBadge(label = status, tone = StatusTone.Warning)
+                StatusBadge(label = status, tone = statusToneFor(status))
             }
             Text(patientName, color = MaterialTheme.colorScheme.onSurfaceVariant)
             DataFreshnessLabel(occurredAt)
         }
+    }
+}
+
+internal fun statusToneFor(status: String): StatusTone {
+    val normalized = status.trim().lowercase()
+    return when {
+        normalized.contains("crít") || normalized.contains("crit") ||
+            normalized.contains("crisis") || normalized.contains("urgente") -> StatusTone.Critical
+        normalized.contains("desconect") || normalized.contains("antigu") ||
+            normalized.contains("pendiente") || normalized.contains("alerta") ||
+            normalized.contains("revisión") || normalized.contains("revision") -> StatusTone.Warning
+        normalized.contains("conectado") || normalized.contains("reciente") ||
+            normalized.contains("resuelto") || normalized.contains("normal") ||
+            normalized.contains("disponible") -> StatusTone.Positive
+        else -> StatusTone.Neutral
     }
 }

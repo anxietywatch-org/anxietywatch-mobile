@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
@@ -58,6 +59,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -344,7 +348,11 @@ fun PatientProfileScreen(
                     "Política de Privacidad",
                     color = MaterialTheme.colorScheme.primary,
                     textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.padding(top = 4.dp).clickable(onClick = onPrivacyPolicyClick),
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                        .clickable(role = Role.Button, onClick = onPrivacyPolicyClick)
+                        .semantics { role = Role.Button },
                 )
             }
         }
