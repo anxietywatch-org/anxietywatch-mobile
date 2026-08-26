@@ -78,6 +78,7 @@ fun PatientProfileScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val remoteProfile by viewModel.profile.collectAsState()
+    val localDemographics by viewModel.localDemographics.collectAsState()
     var fullName by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf("") }
@@ -92,6 +93,7 @@ fun PatientProfileScreen(
     var diagnosis by remember { mutableStateOf<Boolean?>(null) }
     var professional by remember { mutableStateOf("") }
     var profileLoaded by remember { mutableStateOf(false) }
+    var localDemographicsLoaded by remember { mutableStateOf(false) }
     var photoUri by remember {
         mutableStateOf(
             context.getSharedPreferences(PHOTO_PREFERENCES, android.content.Context.MODE_PRIVATE)
@@ -210,6 +212,16 @@ fun PatientProfileScreen(
 
     LaunchedEffect(uiState) {
         if (uiState is PatientProfileUiState.Success) onCompleted()
+    }
+    LaunchedEffect(localDemographics) {
+        val local = localDemographics ?: return@LaunchedEffect
+        if (!localDemographicsLoaded) {
+            age = local.age
+            gender = local.gender
+            height = local.heightCm
+            weight = local.weightKg
+            localDemographicsLoaded = true
+        }
     }
 
     when (val state = uiState) {

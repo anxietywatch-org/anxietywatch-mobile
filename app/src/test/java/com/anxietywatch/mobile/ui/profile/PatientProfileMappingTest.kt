@@ -24,4 +24,22 @@ class PatientProfileMappingTest {
         assertNull(request.currentMedications)
         assertNull(request.avatarUrl)
     }
+
+    @Test
+    fun localDemographicsAreTrimmedAndBlankValuesAreRemoved() {
+        val preferences = localPreferencesFrom(
+            PatientProfileData(
+                fullName = "Ana Patient",
+                age = " 31 ",
+                gender = " ",
+                heightCm = " 170 ",
+                weightKg = "",
+            ),
+        )
+
+        assertEquals("31", preferences.age)
+        assertNull(preferences.gender)
+        assertEquals("170", preferences.heightCm)
+        assertNull(preferences.weightKg)
+    }
 }

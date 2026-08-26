@@ -2,6 +2,8 @@ package com.anxietywatch.mobile.ui.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.anxietywatch.mobile.data.local.FrontendPreferencesStore
+import com.anxietywatch.mobile.data.local.PatientLocalProfilePreferences
 import com.anxietywatch.mobile.data.remote.AnxietyWatchApi
 import com.anxietywatch.mobile.data.remote.ProfileResponseDto
 import com.anxietywatch.mobile.data.remote.ProfileUpdateRequest
@@ -10,6 +12,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import javax.inject.Inject
@@ -40,6 +44,7 @@ sealed interface PatientProfileUiState {
 @HiltViewModel
 class PatientProfileViewModel @Inject constructor(
     private val api: AnxietyWatchApi,
+    private val frontendPreferences: FrontendPreferencesStore,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow<PatientProfileUiState>(PatientProfileUiState.Idle)
     val uiState: StateFlow<PatientProfileUiState> = _uiState.asStateFlow()
@@ -47,6 +52,12 @@ class PatientProfileViewModel @Inject constructor(
     val profile: StateFlow<ProfileResponseDto?> = _profile.asStateFlow()
     private val _localDemographics = MutableStateFlow<PatientProfileData?>(null)
     val localDemographics: StateFlow<PatientProfileData?> = _localDemographics.asStateFlow()
+
+    init {
+        frontendPreferences.patientDemographicsFlow
+            .onEach { _localDemographics.value = it.toProfileData() }
+            .launchIn(viewModelScope)
+    }
 
     fun loadProfile() {
         _uiState.update { PatientProfileUiState.Loading }
@@ -90,6 +101,12 @@ class PatientProfileViewModel @Inject constructor(
         viewModelScope.launch {
             // Age/height/weight no existen en /api/profile: quedan solo en estado local.
             // TODO: hábitos y bienestar tampoco tienen campos confirmados en el backend.
+            runCatching {
+                frontendPreferences.savePatientDemographics(localPreferencesFrom(profile))
+            }.onFailure { error ->
+                _uiState.update { PatientProfileUiState.Error(error.message ?: "No se pudo guardar la información local.") }
+                return@launch
+            }
             _localDemographics.value = profile
             runCatching {
                 api.updateProfile(profileUpdateRequestFrom(profile))
@@ -109,6 +126,21 @@ class PatientProfileViewModel @Inject constructor(
         }
     }
 }
+
+internal fun localPreferencesFrom(profile: PatientProfileData) = PatientLocalProfilePreferences(
+    age = profile.age.trim().ifBlank { null },
+    gender = profile.gender.trim().ifBlank { null },
+    heightCm = profile.heightCm.trim().ifBlank { null },
+    weightKg = profile.weightKg.trim().ifBlank { null },
+)
+
+private fun PatientLocalProfilePreferences.toProfileData() = PatientProfileData(
+    fullName = "",
+    age = age.orEmpty(),
+    gender = gender.orEmpty(),
+    heightCm = heightCm.orEmpty(),
+    weightKg = weightKg.orEmpty(),
+)
 
 internal fun profileUpdateRequestFrom(profile: PatientProfileData): ProfileUpdateRequest =
     ProfileUpdateRequest(

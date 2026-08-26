@@ -5,6 +5,8 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import com.anxietywatch.mobile.data.local.AppDatabase
+import com.anxietywatch.mobile.data.local.FrontendPreferences
+import com.anxietywatch.mobile.data.local.FrontendPreferencesStore
 import com.anxietywatch.mobile.data.remote.AnxietyWatchApi
 import com.anxietywatch.mobile.data.remote.ApiClient
 import com.anxietywatch.mobile.data.remote.SessionExpiryNotifier
@@ -37,6 +39,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideCaregiverSessionSource(sessionRepository: SessionRepository): CaregiverSessionSource = sessionRepository
+
+    @Provides
+    @Singleton
+    fun provideFrontendPreferences(preferences: FrontendPreferences): FrontendPreferencesStore = preferences
 
     @Provides
     @Singleton
