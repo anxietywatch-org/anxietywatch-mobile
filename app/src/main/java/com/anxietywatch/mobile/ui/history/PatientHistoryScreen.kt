@@ -39,6 +39,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.anxietywatch.mobile.data.remote.EpisodeDto
+import com.anxietywatch.mobile.ui.common.EmptyState
+import com.anxietywatch.mobile.ui.common.ErrorState
+import com.anxietywatch.mobile.ui.common.LoadingState
+import com.anxietywatch.mobile.ui.common.SectionHeader
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -49,12 +53,8 @@ fun PatientHistoryScreen(viewModel: PatientHistoryViewModel = hiltViewModel()) {
     when (val state = uiState) {
         PatientHistoryUiState.Idle,
         PatientHistoryUiState.Loading,
-        -> Text("Cargando tu historial...", modifier = Modifier.padding(24.dp))
-        is PatientHistoryUiState.Error -> Text(
-            state.message,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.padding(24.dp),
-        )
+        -> LoadingState("Cargando tu historial...")
+        is PatientHistoryUiState.Error -> ErrorState(state.message, viewModel::loadHistory)
         is PatientHistoryUiState.Success -> HistoryContent(state.episodes)
     }
 }
@@ -65,14 +65,16 @@ private fun HistoryContent(episodes: List<EpisodeDto>) {
     val chartEpisodes = episodes.takeLast(4)
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
-        Text("Historial del paciente", style = MaterialTheme.typography.headlineLarge)
-        Text(
-            "Últimos 7 días",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp),
+        SectionHeader(
+            eyebrow = "PACIENTE",
+            title = "Historial del paciente",
+            description = "Últimos 7 días",
         )
         if (episodes.isEmpty()) {
-            EmptyHistoryMessage()
+            EmptyState(
+                title = "Aún no hay episodios registrados",
+                description = "Cuando haya actividad registrada, aparecerá aquí.",
+            )
         } else {
             Text("Nivel de ansiedad", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp))
             Card(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
@@ -89,24 +91,6 @@ private fun HistoryContent(episodes: List<EpisodeDto>) {
             episodes.asReversed().forEach { episode -> HistoryEventRow(episode) }
         }
         Spacer(Modifier.height(32.dp))
-    }
-}
-
-@Composable
-private fun EmptyHistoryMessage() {
-    Card(modifier = Modifier.fillMaxWidth().padding(top = 32.dp)) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(42.dp), tint = MaterialTheme.colorScheme.primary)
-            Text("Aún no hay episodios registrados", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
-            Text(
-                "Cuando haya actividad registrada, aparecerá aquí.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-        }
     }
 }
 

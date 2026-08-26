@@ -44,6 +44,8 @@ fun SettingsPatientScreen(
     onPersonalProfile: () -> Unit,
     onManageWatch: () -> Unit,
     onLogout: () -> Unit,
+    darkModeEnabled: Boolean = false,
+    onDarkModeChange: (Boolean) -> Unit = {},
     onGrounding: () -> Unit = {},
     onRelaxingSounds: () -> Unit = {},
 ) {
@@ -68,6 +70,8 @@ fun SettingsPatientScreen(
             ToggleRow("Notificaciones", "Alertas y recordatorios", notificationsEnabled) { notificationsEnabled = it }
             HorizontalDivider()
             ToggleRow("Sonido", "Sonidos de la aplicación", soundEnabled) { soundEnabled = it }
+            HorizontalDivider()
+            ToggleRow("Modo oscuro", "Reduce la fatiga visual", darkModeEnabled, onDarkModeChange)
         }
 
         SettingsSectionTitle("CUENTA")

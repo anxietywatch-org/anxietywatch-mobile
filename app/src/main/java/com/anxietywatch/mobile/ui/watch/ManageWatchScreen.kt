@@ -36,6 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.anxietywatch.mobile.ui.common.ConnectivityCard
+import com.anxietywatch.mobile.ui.common.SectionHeader
 
 @Composable
 fun ManageWatchScreen(viewModel: ManageWatchViewModel = hiltViewModel()) {
@@ -43,23 +45,12 @@ fun ManageWatchScreen(viewModel: ManageWatchViewModel = hiltViewModel()) {
     var showDisconnectDialog by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
-        Text("Gestionar reloj", style = MaterialTheme.typography.headlineLarge)
-        Card(modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(16.dp)) {
-                Icon(Icons.Default.Watch, contentDescription = null, modifier = Modifier.size(52.dp))
-                Column(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
-                    Text(
-                        state.deviceName ?: "Reloj no vinculado",
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                    Text(
-                        if (state.connected) "Conectado" else "Desconectado",
-                        color = if (state.connected) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,
-                    )
-                }
-                // TODO: el protocolo actual del reloj no envía batería.
-            }
-        }
+        SectionHeader(eyebrow = "DISPOSITIVO", title = "Gestionar reloj")
+        ConnectivityCard(
+            connected = state.connected,
+            deviceName = state.deviceName,
+            lastSync = state.lastSync,
+        )
         SectionTitle("Sincronización")
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {

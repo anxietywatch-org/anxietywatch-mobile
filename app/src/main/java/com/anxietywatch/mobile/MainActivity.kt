@@ -6,6 +6,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.anxietywatch.mobile.core.theme.AnxietyWatchTheme
 import com.anxietywatch.mobile.data.remote.SessionExpiryNotifier
@@ -28,12 +33,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            AnxietyWatchTheme {
+            var forceDarkTheme by rememberSaveable { mutableStateOf<Boolean?>(null) }
+            AnxietyWatchTheme(forceDarkTheme = forceDarkTheme) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     ScreenScaffold {
                     AnxietyWatchNavHost(
                         sessionRepository = sessionRepository,
                         sessionExpiryNotifier = sessionExpiryNotifier,
+                        darkModeEnabled = forceDarkTheme ?: isSystemInDarkTheme(),
+                        onDarkModeChange = { forceDarkTheme = it },
                     )
                     }
                 }

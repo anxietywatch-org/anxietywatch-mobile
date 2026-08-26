@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,6 +18,13 @@ import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.anxietywatch.mobile.ui.common.AlertRow
+import com.anxietywatch.mobile.ui.common.EmptyState
+import com.anxietywatch.mobile.ui.common.ErrorState
+import com.anxietywatch.mobile.ui.common.LoadingState
+import com.anxietywatch.mobile.ui.common.MetricCard
+import com.anxietywatch.mobile.ui.common.PatientRow
+import com.anxietywatch.mobile.ui.common.SectionHeader
 
 data class CaregiverPatientUiModel(
     val id: String,
@@ -37,67 +42,58 @@ fun DashboardCaregiverScreen(
     val uiState by viewModel.uiState.collectAsState()
     val data = (uiState as? DashboardCaregiverUiState.Success)?.data
     if (data == null) {
-        Text(
-            text = if (uiState is DashboardCaregiverUiState.Error) {
-                (uiState as DashboardCaregiverUiState.Error).message
-            } else {
-                "Cargando pacientes..."
-            },
-            modifier = Modifier.padding(24.dp),
-        )
+        when (val state = uiState) {
+            DashboardCaregiverUiState.Idle,
+            DashboardCaregiverUiState.Loading,
+            -> LoadingState("Cargando pacientes...")
+            is DashboardCaregiverUiState.Error -> ErrorState(state.message, viewModel::loadDashboard)
+            is DashboardCaregiverUiState.Success -> Unit
+        }
         return
     }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
     ) {
-        Text("Bienvenida de nuevo, ${data.caregiverName}", style = MaterialTheme.typography.headlineLarge)
-        Text(
-            "Resumen de tus pacientes",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        SectionHeader(
+            eyebrow = "CUIDADOR",
+            title = "Bienvenida de nuevo, ${data.caregiverName}",
+            description = "Resumen de tus pacientes",
         )
-        Spacer(Modifier.height(20.dp))
         data.patients.forEach { patient ->
-            Card(
-                onClick = { onPatientClick(patient.name) },
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(patient.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                        AssistChip(onClick = {}, label = { Text(patient.status) })
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Text("${patient.heartRate} BPM", style = MaterialTheme.typography.headlineSmall)
-                    Text(
-                        "Última sincronización: ${patient.lastSync}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            PatientRow(
+                name = patient.name,
+                status = patient.status,
+                heartRate = patient.heartRate,
+                lastSync = patient.lastSync,
+                onClick = { onPatientClick(patient.id) },
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+        }
+        if (data.patients.isEmpty()) {
+            EmptyState(
+                title = "No hay pacientes vinculados.",
+                description = "Cuando exista una vinculación disponible, aparecerá aquí.",
+            )
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            SummaryCard("Pacientes activos", data.patients.size.toString(), Modifier.weight(1f))
-            SummaryCard("Intervenciones hoy", "2", Modifier.weight(1f))
+            MetricCard("Pacientes activos", data.patients.size.toString(), modifier = Modifier.weight(1f))
+            MetricCard("Intervenciones hoy", "2", modifier = Modifier.weight(1f))
         }
         Spacer(Modifier.height(20.dp))
         Text("Registro de intervenciones", style = MaterialTheme.typography.titleMedium)
-        Text("Sesión de respiración guiada · Hoy, 10:30", style = MaterialTheme.typography.bodyMedium)
-        Text("Revisión de estado · Ayer, 20:15", style = MaterialTheme.typography.bodyMedium)
-    }
-}
-
-@Composable
-private fun SummaryCard(title: String, value: String, modifier: Modifier) {
-    Card(modifier = modifier) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(value, style = MaterialTheme.typography.headlineMedium)
-            Text(title, style = MaterialTheme.typography.bodySmall)
-        }
+        AlertRow(
+            title = "Sesión de respiración guiada",
+            patientName = "Paciente demo",
+            occurredAt = "Hoy, 10:30",
+            status = "Registrada",
+            modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),
+        )
+        AlertRow(
+            title = "Revisión de estado",
+            patientName = "Paciente demo",
+            occurredAt = "Ayer, 20:15",
+            status = "Registrada",
+        )
     }
 }

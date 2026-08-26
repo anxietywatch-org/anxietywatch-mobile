@@ -53,6 +53,8 @@ import kotlinx.coroutines.launch
 fun AnxietyWatchNavHost(
     sessionRepository: SessionRepository,
     sessionExpiryNotifier: SessionExpiryNotifier,
+    darkModeEnabled: Boolean = false,
+    onDarkModeChange: (Boolean) -> Unit = {},
     navController: NavHostController = rememberNavController(),
 ) {
     val scope = rememberCoroutineScope()
@@ -133,6 +135,8 @@ fun AnxietyWatchNavHost(
                         HomeBottomTab.Ajustes -> SettingsPatientScreen(
                             onPersonalProfile = { navController.navigate(Routes.PatientProfile.route) },
                             onManageWatch = { navController.navigate(Routes.ManageWatch.route) },
+                            darkModeEnabled = darkModeEnabled,
+                            onDarkModeChange = onDarkModeChange,
                             onLogout = {
                                 scope.launch {
                                     sessionRepository.clearSession()
@@ -176,6 +180,8 @@ fun AnxietyWatchNavHost(
             SettingsPatientScreen(
                 onPersonalProfile = { navController.navigate(Routes.PatientProfile.route) },
                 onManageWatch = { navController.navigate(Routes.ManageWatch.route) },
+                darkModeEnabled = darkModeEnabled,
+                onDarkModeChange = onDarkModeChange,
                 onLogout = {
                     scope.launch {
                         sessionRepository.clearSession()
@@ -231,13 +237,13 @@ fun AnxietyWatchNavHost(
     }
 }
 
-private fun permissionDestination(role: String): String = when (role.lowercase()) {
+internal fun permissionDestination(role: String): String = when (role.lowercase()) {
     "self", "patient" -> Routes.PermissionsPatient.route
     "family_member" -> Routes.PermissionsCaregiver.route
     else -> Routes.TokenEntry.route
 }
 
-private fun roleDestination(role: String?): String = when (role?.lowercase()) {
+internal fun roleDestination(role: String?): String = when (role?.lowercase()) {
     "self", "patient" -> Routes.HomePatient.route
     "family_member" -> Routes.DashboardCaregiver.route
     else -> Routes.TokenEntry.route

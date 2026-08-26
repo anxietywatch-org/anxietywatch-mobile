@@ -51,6 +51,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.anxietywatch.mobile.data.remote.EpisodeDto
+import com.anxietywatch.mobile.ui.common.ErrorState
+import com.anxietywatch.mobile.ui.common.LoadingState
+import com.anxietywatch.mobile.ui.common.MetricCard
 
 /**
  * Home del paciente (E06), portado 1:1 desde el HTML/CSS real del Stitch
@@ -84,15 +87,14 @@ fun HomePatientScreen(
     val displayedState = state ?: when (networkState) {
         is HomePatientNetworkUiState.Success -> (networkState as HomePatientNetworkUiState.Success).data.state
         is HomePatientNetworkUiState.Error -> {
-            Text(
-                (networkState as HomePatientNetworkUiState.Error).message,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(24.dp),
+            ErrorState(
+                message = (networkState as HomePatientNetworkUiState.Error).message,
+                onRetry = viewModel::loadHome,
             )
             return
         }
         else -> {
-            Text("Cargando tu resumen...", modifier = Modifier.padding(24.dp))
+            LoadingState("Cargando tu resumen...")
             return
         }
     }
@@ -256,44 +258,17 @@ private fun BreathingRing(bpm: Int?) {
 private fun QuickInsightsRow(state: HomePatientUiState) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            InsightCard(Icons.Filled.Air, "Respiración", "${state.breathingRate}", "rpm", Modifier.weight(1f))
-            InsightCard(Icons.Filled.Bedtime, "Sueño", "${state.sleepHours}", "hrs", Modifier.weight(1f))
+            MetricCard("Respiración", "${state.breathingRate}", "rpm", modifier = Modifier.weight(1f))
+            MetricCard("Sueño", "${state.sleepHours}", "hrs", modifier = Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            InsightCard(Icons.Filled.Spa, "Racha", "${state.streakDays}", "días", Modifier.weight(1f))
-            InsightCard(
-                Icons.Filled.HistoryEdu,
+            MetricCard("Racha", "${state.streakDays}", "días", modifier = Modifier.weight(1f))
+            MetricCard(
                 "Registros",
                 "${state.weeklyRecordsUsed}",
-                state.weeklyRecordsLimit?.let { "/$it" } ?: "",
-                Modifier.weight(1f),
+                state.weeklyRecordsLimit?.let { "/$it" },
+                modifier = Modifier.weight(1f),
             )
-        }
-    }
-}
-
-@Composable
-private fun InsightCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    value: String,
-    unit: String,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(12.dp),
-        modifier = modifier,
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
-            Spacer(Modifier.height(4.dp))
-            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(value, style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.secondary)
-                Spacer(Modifier.width(4.dp))
-                Text(unit, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
-            }
         }
     }
 }
