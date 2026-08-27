@@ -65,6 +65,7 @@ class CaregiverPushService : FirebaseMessagingService() {
         val patientName = message.data[PATIENT_NAME_KEY]?.trim()?.takeIf { it.isNotEmpty() }
         val alertMessage = message.data[ALERT_MESSAGE_KEY]?.trim()?.takeIf { it.isNotEmpty() }
         val openAppIntent = Intent(this, MainActivity::class.java).apply {
+            setPackage(packageName)
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             if (eventId != null && patientName != null && alertMessage != null) {
                 putExtra(EXTRA_EVENT_ID, eventId)
