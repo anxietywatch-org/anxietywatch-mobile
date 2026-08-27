@@ -4,7 +4,12 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt.android)
-    alias(libs.plugins.google.services)
+    alias(libs.plugins.google.services) apply false
+}
+
+// CI no almacena google-services.json. Firebase se configura en builds que sí tienen el archivo local.
+if (file("google-services.json").isFile) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 android {
