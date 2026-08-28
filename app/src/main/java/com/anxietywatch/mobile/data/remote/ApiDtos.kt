@@ -28,7 +28,7 @@ data class SampleQualityDto(
 data class TelemetrySampleDto(
     val timestamp: String, // ISO-8601 UTC, ej. "2026-08-11T23:50:00Z"
     val heartRateBpm: Double? = null,
-    val ibiMs: List<Double> = emptyList(),
+    val ibiMs: List<Double>,
     val accelerometer: AccelerometerSampleDto? = null,
     val skinTemperatureCelsius: Double? = null,
     val ambientTemperatureCelsius: Double? = null,

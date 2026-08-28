@@ -1,8 +1,10 @@
 package com.anxietywatch.mobile.data.remote
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ApiDtosTest {
@@ -95,7 +97,7 @@ class ApiDtosTest {
 
     @Test
     fun wearableRequestsKeepNullableUserIdAndIbi() {
-        val sample = TelemetrySampleDto(timestamp = "2026-08-26T00:00:00Z")
+        val sample = TelemetrySampleDto(timestamp = "2026-08-26T00:00:00Z", ibiMs = emptyList())
         val request = CreateTelemetryBatchRequest(
             batchId = "batch-1",
             deviceId = "device-1",
@@ -114,6 +116,30 @@ class ApiDtosTest {
     fun nullableSensorIbiMapsToEmptyHttpListAndRealIbiIsPreserved() {
         assertEquals(emptyList<Double>(), httpIbiMs(null))
         assertEquals(listOf(810.0, 820.0), httpIbiMs(listOf(810.0, 820.0)))
+    }
+
+    @Test
+    fun emptyIbiIsSerializedAsAnExplicitEmptyArray() {
+        val sample = TelemetrySampleDto(
+            timestamp = "2026-08-26T00:00:00Z",
+            ibiMs = emptyList(),
+        )
+
+        val serialized = json.encodeToString(sample)
+
+        assertTrue(serialized.contains("\"ibiMs\":[]"))
+    }
+
+    @Test
+    fun nonEmptyIbiIsSerializedWithoutChangingValues() {
+        val sample = TelemetrySampleDto(
+            timestamp = "2026-08-26T00:00:00Z",
+            ibiMs = listOf(810.0, 820.0),
+        )
+
+        val serialized = json.encodeToString(sample)
+
+        assertTrue(serialized.contains("\"ibiMs\":[810.0,820.0]"))
     }
 
     @Test
