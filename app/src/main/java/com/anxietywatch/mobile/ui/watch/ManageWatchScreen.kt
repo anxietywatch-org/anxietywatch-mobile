@@ -41,7 +41,10 @@ import com.anxietywatch.mobile.ui.common.ConnectivityStatus
 import com.anxietywatch.mobile.ui.common.SectionHeader
 
 @Composable
-fun ManageWatchScreen(viewModel: ManageWatchViewModel = hiltViewModel()) {
+fun ManageWatchScreen(
+    onPairWatch: () -> Unit = {},
+    viewModel: ManageWatchViewModel = hiltViewModel(),
+) {
     val state by viewModel.uiState.collectAsState()
     var showDisconnectDialog by remember { mutableStateOf(false) }
 
@@ -52,6 +55,20 @@ fun ManageWatchScreen(viewModel: ManageWatchViewModel = hiltViewModel()) {
             deviceName = state.deviceName,
             lastSync = state.lastSync,
         )
+        if (state.pairingStored) {
+            Text(
+                "Reloj vinculado",
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+        } else {
+            Button(
+                onClick = onPairWatch,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            ) {
+                Text("Vincular reloj")
+            }
+        }
         SectionTitle("Sincronización")
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {

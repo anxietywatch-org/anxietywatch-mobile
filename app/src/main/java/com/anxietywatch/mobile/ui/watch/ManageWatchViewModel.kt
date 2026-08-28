@@ -20,6 +20,7 @@ import javax.inject.Inject
 
 data class ManageWatchUiState(
     val hapticNotifications: Boolean = true,
+    val pairingStored: Boolean = false,
     val deviceName: String? = null,
     val lastSync: String = "Sin datos del reloj aún",
     val connected: Boolean = false,
@@ -36,6 +37,11 @@ class ManageWatchViewModel @Inject constructor(
     val uiState: StateFlow<ManageWatchUiState> = _uiState.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            sessionContext.pairedDeviceIdFlow.collect { deviceId ->
+                _uiState.update { it.copy(pairingStored = deviceId != null) }
+            }
+        }
         viewModelScope.launch {
             watchStateRepository.state.collect { watchState ->
                 _uiState.update {
