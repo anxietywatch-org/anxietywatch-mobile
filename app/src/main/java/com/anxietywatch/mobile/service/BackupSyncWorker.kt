@@ -10,6 +10,8 @@ import com.anxietywatch.mobile.data.bridge.DeliveryCoordinator
 import com.anxietywatch.mobile.data.bridge.BackendDeliveryResponse
 import com.anxietywatch.mobile.data.bridge.DeliveryReason
 import com.anxietywatch.mobile.data.bridge.MonitoringSessionContext
+import com.anxietywatch.mobile.data.bridge.TERMINAL_NACK_TELEMETRY_PREFIX
+import com.anxietywatch.mobile.data.bridge.terminalTelemetryNackPayload
 import com.anxietywatch.mobile.data.local.AppDatabase
 import com.anxietywatch.mobile.data.local.SyncStatus
 import com.anxietywatch.mobile.data.remote.AnxietyWatchApi
@@ -118,6 +120,8 @@ class BackupSyncWorker @AssistedInject constructor(
                 { api.sendTelemetryBatch(request).let { BackendDeliveryResponse(it.batchId, it.accepted, it.duplicate) } },
                 { status, reason -> dao.updateTelemetryBatchStatus(pending.batchId, status, reason) },
                 { reason -> dao.incrementTelemetryAttempt(pending.batchId, reason) },
+                terminalNackPath = "$TERMINAL_NACK_TELEMETRY_PREFIX${pending.batchId}",
+                terminalNackPayload = terminalTelemetryNackPayload(pending.batchId),
             )
         }
         dao.getTelemetryBatchesByStatus(SyncStatus.BACKEND_DELIVERED_ACK_PENDING).forEach { pending ->

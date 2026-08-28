@@ -9,6 +9,8 @@ import kotlin.coroutines.suspendCoroutine
 
 interface WearAckSender {
     suspend fun sendAck(nodeId: String, path: String): Boolean
+
+    suspend fun sendTerminalNack(nodeId: String, path: String, payload: ByteArray): Boolean
 }
 
 class DataLayerWearAckSender @Inject constructor(
@@ -19,4 +21,11 @@ class DataLayerWearAckSender @Inject constructor(
             .sendMessage(nodeId, path, ByteArray(0))
             .addOnCompleteListener { task -> continuation.resume(task.isSuccessful) }
     }
+
+    override suspend fun sendTerminalNack(nodeId: String, path: String, payload: ByteArray): Boolean =
+        suspendCoroutine { continuation ->
+            Wearable.getMessageClient(context)
+                .sendMessage(nodeId, path, payload)
+                .addOnCompleteListener { task -> continuation.resume(task.isSuccessful) }
+        }
 }
