@@ -38,7 +38,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 
 @Composable
-fun ManageWatchScreen(viewModel: ManageWatchViewModel = hiltViewModel()) {
+fun ManageWatchScreen(
+    onPairWatch: () -> Unit = {},
+    viewModel: ManageWatchViewModel = hiltViewModel(),
+) {
     val state by viewModel.uiState.collectAsState()
     var showDisconnectDialog by remember { mutableStateOf(false) }
 
@@ -58,6 +61,14 @@ fun ManageWatchScreen(viewModel: ManageWatchViewModel = hiltViewModel()) {
                     )
                 }
                 // TODO: el protocolo actual del reloj no envía batería.
+            }
+        }
+        if (!state.pairingStored) {
+            Button(
+                onClick = onPairWatch,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            ) {
+                Text("Vincular reloj")
             }
         }
         SectionTitle("Sincronización")

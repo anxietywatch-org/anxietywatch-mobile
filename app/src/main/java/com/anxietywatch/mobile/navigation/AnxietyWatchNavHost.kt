@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -156,7 +157,7 @@ fun AnxietyWatchNavHost(
             )
         }
         composable(Routes.HomePatient.route) {
-            var selectedTab by remember { mutableStateOf(HomeBottomTab.Home) }
+            var selectedTab by rememberSaveable { mutableStateOf(HomeBottomTab.Home) }
             Column(modifier = Modifier.fillMaxSize()) {
                 androidx.compose.foundation.layout.Box(modifier = Modifier.weight(1f)) {
                     when (selectedTab) {
@@ -166,7 +167,11 @@ fun AnxietyWatchNavHost(
                         HomeBottomTab.Historial -> PatientHistoryScreen()
                         HomeBottomTab.Ajustes -> SettingsPatientScreen(
                             onPersonalProfile = { navController.navigate(Routes.PatientProfile.route) },
-                            onManageWatch = { navController.navigate(Routes.ManageWatch.route) },
+                            onManageWatch = {
+                                // Restore the Settings tab when Manage Watch is popped.
+                                selectedTab = HomeBottomTab.Ajustes
+                                navController.navigate(Routes.ManageWatch.route)
+                            },
                             onLogout = {
                                 scope.launch {
                                     sessionRepository.clearSession()
@@ -234,11 +239,15 @@ fun AnxietyWatchNavHost(
         composable(PatientExtraRoutes.RelaxingSounds) { RelaxingSoundsScreen() }
         composable(Routes.WatchPairing.route) {
             WatchPairingScreen(
-                onConnected = { navController.navigate(Routes.HomePatient.route) },
-                onSkip = { navController.navigate(Routes.HomePatient.route) },
+                onConnected = { navController.popBackStack() },
+                onSkip = { navController.popBackStack() },
             )
         }
-        composable(Routes.ManageWatch.route) { ManageWatchScreen() }
+        composable(Routes.ManageWatch.route) {
+            ManageWatchScreen(
+                onPairWatch = { navController.navigate(Routes.WatchPairing.route) },
+            )
+        }
         composable(Routes.PatientDetail.route) { backStackEntry ->
             val patientId = backStackEntry.arguments?.getString("patientId").orEmpty()
             PatientDetailScreen(
