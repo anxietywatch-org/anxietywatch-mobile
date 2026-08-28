@@ -4,8 +4,11 @@ import com.anxietywatch.mobile.data.local.SyncStatus
 import java.io.IOException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import retrofit2.HttpException
+import retrofit2.Response
 
 class DeliveryCoordinatorTest {
     private val deviceId = "123e4567-e89b-12d3-a456-426614174001"
@@ -15,9 +18,9 @@ class DeliveryCoordinatorTest {
     fun `accepted response plus ack success becomes delivered`() = runScenario(
         response = BackendDeliveryResponse("id", accepted = true, duplicate = false),
         ackResult = true,
-    ) { states, _, ackCalls ->
-        assertEquals(listOf(SyncStatus.BACKEND_DELIVERED_ACK_PENDING, SyncStatus.DELIVERED), states)
-        assertEquals(1, ackCalls)
+        ) { states, _, ackCalls ->
+            assertEquals(listOf(SyncStatus.BACKEND_DELIVERED_ACK_PENDING, SyncStatus.DELIVERED), states)
+            assertEquals(1, ackCalls)
     }
 
     @Test
@@ -25,6 +28,22 @@ class DeliveryCoordinatorTest {
         response = BackendDeliveryResponse("id", accepted = false, duplicate = true),
         ackResult = true,
     ) { states, _, _ -> assertEquals(SyncStatus.DELIVERED, states.last()) }
+
+    @Test
+    fun `successful backend response never sends terminal nack`() = runBlocking {
+        val ack = FakeAckSender(true)
+
+        DeliveryCoordinator(pairing, ack).deliver(
+            SyncStatus.PENDING_HTTP, 0, null, deviceId, "id", "/ack",
+            http = { BackendDeliveryResponse("id", accepted = true, duplicate = false) },
+            persist = { _, _ -> },
+            incrementAttempt = {},
+            terminalNackPath = "/nack",
+            terminalNackPayload = byteArrayOf(),
+        )
+
+        assertEquals(0, ack.nackCalls)
+    }
 
     @Test
     fun `backend success and ack failure stays ack pending`() = runScenario(
@@ -48,6 +67,48 @@ class DeliveryCoordinatorTest {
         )
         assertEquals(0, httpCalls)
         assertEquals(listOf(SyncStatus.DELIVERED), states)
+        assertEquals(1, ack.calls)
+        assertEquals(0, ack.nackCalls)
+    }
+
+    @Test
+    fun `historical terminal redelivery sends nack without insert or HTTP`() = runBlocking {
+        val ack = FakeAckSender(true)
+        val states = mutableListOf<String>()
+        var httpCalls = 0
+
+        repeat(2) {
+            DeliveryCoordinator(pairing, ack).deliver(
+                SyncStatus.TERMINAL_FAILED, 0, DeliveryReason.HTTP_PERMANENT,
+                deviceId, "historical-id", "/ack",
+                http = { httpCalls++; BackendDeliveryResponse("historical-id", true, false) },
+                persist = { state, _ -> states += state }, incrementAttempt = {},
+                terminalNackPath = "/fog/v1/nack/telemetry/historical-id",
+                terminalNackPayload = terminalTelemetryNackPayload("historical-id"),
+            )
+        }
+
+        assertEquals(0, httpCalls)
+        assertTrue(states.isEmpty())
+        assertEquals(2, ack.nackCalls)
+        assertEquals("historical-id", ack.lastNackPayload?.let { String(it) }?.substringAfter("\"id\":\"")?.substringBefore("\""))
+        assertEquals("/fog/v1/nack/telemetry/historical-id", ack.lastNackPath)
+    }
+
+    @Test
+    fun `delivered redelivery sends positive ack without HTTP`() = runBlocking {
+        val ack = FakeAckSender(true)
+        var httpCalls = 0
+
+        DeliveryCoordinator(pairing, ack).deliver(
+            SyncStatus.DELIVERED, 0, null, deviceId, "delivered-id", "/ack",
+            http = { httpCalls++; BackendDeliveryResponse("delivered-id", true, false) },
+            persist = { _, _ -> }, incrementAttempt = {},
+        )
+
+        assertEquals(0, httpCalls)
+        assertEquals(1, ack.calls)
+        assertEquals(0, ack.nackCalls)
     }
 
     @Test
@@ -81,6 +142,74 @@ class DeliveryCoordinatorTest {
         )
         assertEquals(listOf(SyncStatus.TERMINAL_FAILED), states)
         assertEquals(0, ack.calls)
+    }
+
+    @Test
+    fun `permanent telemetry failure persists before sending terminal nack`() = runBlocking {
+        val ack = FakeAckSender(true)
+        val order = mutableListOf<String>()
+        val states = mutableListOf<String>()
+        ack.onNack = { order += "nack" }
+
+        DeliveryCoordinator(pairing, ack).deliver(
+            SyncStatus.PENDING_HTTP, 0, null, deviceId, "id", "/ack",
+            http = { throw httpError(400) },
+            persist = { state, _ -> order += "persist"; states += state },
+            incrementAttempt = {},
+            terminalNackPath = "/nack",
+            terminalNackPayload = byteArrayOf(1),
+        )
+
+        assertEquals(listOf(SyncStatus.TERMINAL_FAILED), states)
+        assertEquals(listOf("persist", "nack"), order)
+        assertEquals(1, ack.nackCalls)
+    }
+
+    @Test
+    fun `permanent HTTP codes send terminal nack while retryable codes do not`() = runBlocking {
+        listOf(400, 403, 404, 409, 422).forEach { code ->
+            val ack = FakeAckSender(true)
+            val states = mutableListOf<String>()
+            DeliveryCoordinator(pairing, ack).deliver(
+                SyncStatus.PENDING_HTTP, 0, null, deviceId, "id", "/ack",
+                http = { throw httpError(code) },
+                persist = { state, _ -> states += state },
+                incrementAttempt = {},
+                terminalNackPath = "/nack",
+                terminalNackPayload = byteArrayOf(),
+            )
+            assertEquals(SyncStatus.TERMINAL_FAILED, states.single())
+            assertEquals(1, ack.nackCalls)
+        }
+
+        listOf(401, 429, 500).forEach { code ->
+            val ack = FakeAckSender(true)
+            val states = mutableListOf<String>()
+            var attempts = 0
+            DeliveryCoordinator(pairing, ack).deliver(
+                SyncStatus.PENDING_HTTP, 0, null, deviceId, "id", "/ack",
+                http = { throw httpError(code) },
+                persist = { state, _ -> states += state },
+                incrementAttempt = { attempts++ },
+                terminalNackPath = "/nack",
+                terminalNackPayload = byteArrayOf(),
+            )
+            if (code == 401) assertEquals(listOf(SyncStatus.PENDING_HTTP), states)
+            else assertTrue(states.isEmpty())
+            assertEquals(0, ack.nackCalls)
+            if (code != 401) assertEquals(1, attempts)
+        }
+    }
+
+    @Test
+    fun `terminal nack payload is versioned and minimal`() {
+        val payload = String(terminalTelemetryNackPayload("123e4567-e89b-12d3-a456-426614174000"))
+
+        assertEquals(
+            "{\"schemaVersion\":1,\"id\":\"123e4567-e89b-12d3-a456-426614174000\",\"reason\":\"rejected_permanent\"}",
+            payload,
+        )
+        assertFalse(payload.contains("http"))
     }
 
     @Test
@@ -129,9 +258,24 @@ class DeliveryCoordinatorTest {
 
     private class FakeAckSender(private val result: Boolean) : WearAckSender {
         var calls = 0
+        var nackCalls = 0
+        var lastNackPath: String? = null
+        var lastNackPayload: ByteArray? = null
+        var onNack: (() -> Unit)? = null
         override suspend fun sendAck(nodeId: String, path: String): Boolean {
             calls++
             return result
         }
+
+        override suspend fun sendTerminalNack(nodeId: String, path: String, payload: ByteArray): Boolean {
+            nackCalls++
+            lastNackPath = path
+            lastNackPayload = payload
+            onNack?.invoke()
+            return result
+        }
     }
+
+    private fun httpError(status: Int): HttpException =
+        HttpException(Response.error<Any>(status, okhttp3.ResponseBody.create(null, "")))
 }

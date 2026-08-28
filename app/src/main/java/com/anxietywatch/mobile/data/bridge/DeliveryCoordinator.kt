@@ -23,10 +23,22 @@ class DeliveryCoordinator @Inject constructor(
         http: suspend () -> BackendDeliveryResponse,
         persist: suspend (status: String, reason: String?) -> Unit,
         incrementAttempt: suspend (reason: String?) -> Unit,
+        terminalNackPath: String? = null,
+        terminalNackPayload: ByteArray = ByteArray(0),
     ) {
         if (!isCurrentlyPaired(wearableDeviceId)) return
 
+        if (status == SyncStatus.TERMINAL_FAILED && lastError == DeliveryReason.HTTP_PERMANENT) {
+            if (terminalNackPath != null) {
+                sendTerminalNackIfPossible(wearableDeviceId, terminalNackPath, terminalNackPayload)
+            }
+            return
+        }
         if (status == SyncStatus.BACKEND_DELIVERED_ACK_PENDING) {
+            sendAckIfPossible(wearableDeviceId, ackPath, persist)
+            return
+        }
+        if (status == SyncStatus.DELIVERED) {
             sendAckIfPossible(wearableDeviceId, ackPath, persist)
             return
         }
@@ -42,7 +54,12 @@ class DeliveryCoordinator @Inject constructor(
                     }
                 }
                 RetryClass.WAIT_FOR_AUTH -> persist(SyncStatus.PENDING_HTTP, DeliveryReason.WAIT_FOR_AUTH)
-                RetryClass.TERMINAL -> persist(SyncStatus.TERMINAL_FAILED, DeliveryReason.HTTP_PERMANENT)
+                RetryClass.TERMINAL -> {
+                    persist(SyncStatus.TERMINAL_FAILED, DeliveryReason.HTTP_PERMANENT)
+                    if (terminalNackPath != null) {
+                        sendTerminalNackIfPossible(wearableDeviceId, terminalNackPath, terminalNackPayload)
+                    }
+                }
             }
             return
         }
@@ -69,6 +86,16 @@ class DeliveryCoordinator @Inject constructor(
         }
     }
 
+    private suspend fun sendTerminalNackIfPossible(
+        wearableDeviceId: String,
+        path: String,
+        payload: ByteArray,
+    ) {
+        val nodeId = pairing.lastKnownWearNodeId() ?: return
+        if (!isCurrentlyPaired(wearableDeviceId)) return
+        ackSender.sendTerminalNack(nodeId, path, payload)
+    }
+
     private fun isCurrentlyPaired(wearableDeviceId: String): Boolean =
         isValidWearableDeviceId(wearableDeviceId) && pairing.pairedDeviceId() == wearableDeviceId
 }
@@ -83,3 +110,11 @@ object DeliveryReason {
     const val LEGACY_MISSING_WEARABLE_IDENTITY = "LEGACY_MISSING_WEARABLE_IDENTITY"
     const val INVALID_PAYLOAD = "INVALID_PAYLOAD"
 }
+
+const val TERMINAL_NACK_TELEMETRY_PREFIX = "/fog/v1/nack/telemetry/"
+const val TERMINAL_NACK_SCHEMA_VERSION = 1
+const val TERMINAL_NACK_REASON_REJECTED_PERMANENT = "rejected_permanent"
+
+fun terminalTelemetryNackPayload(batchId: String): ByteArray =
+    """{"schemaVersion":$TERMINAL_NACK_SCHEMA_VERSION,"id":"$batchId","reason":"$TERMINAL_NACK_REASON_REJECTED_PERMANENT"}"""
+        .toByteArray(Charsets.UTF_8)
