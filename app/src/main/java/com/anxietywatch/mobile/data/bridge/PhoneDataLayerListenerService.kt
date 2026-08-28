@@ -47,6 +47,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.time.Instant
 import java.time.format.DateTimeParseException
+import java.util.Locale
 import javax.inject.Inject
 
 /** Fog bridge for the current `/fog/v1` Wear Data Layer protocol. */
@@ -383,6 +384,8 @@ class PhoneDataLayerListenerService : WearableListenerService() {
                 if (status == SyncStatus.DELIVERED) deleteTelemetryDataItem(batchId)
             },
             incrementAttempt = { reason -> database.pendingUploadDao().incrementTelemetryAttempt(batchId, reason) },
+            terminalNackPath = "$TERMINAL_NACK_TELEMETRY_PREFIX$batchId",
+            terminalNackPayload = terminalTelemetryNackPayload(batchId),
         )
     }
 
@@ -434,45 +437,7 @@ class PhoneDataLayerListenerService : WearableListenerService() {
     }
 
     private fun applyReading(sample: MutableTelemetrySample, type: String, payload: JsonObject) {
-        when (type) {
-            "HEART_RATE" -> {
-                sample.heartRateBpm = payload.number("bpm")
-                sample.ibiMs = (payload["ibiMillis"] as? JsonArray)
-                    ?.mapNotNull { it.jsonPrimitive.contentOrNull?.toDoubleOrNull() }
-                sample.heartRateQuality = qualityFrom(payload)
-                sample.ibiQuality = sample.heartRateQuality
-            }
-            "ACCELEROMETER" -> payload.number("magnitudeG")?.let {
-                sample.accelerometer = AccelerometerSampleDto(x = it, y = 0.0, z = 0.0)
-            }
-            "SKIN_TEMPERATURE" -> sample.skinTemperatureCelsius = payload.number("celsius")
-        }
-    }
-
-    private fun qualityFrom(payload: JsonObject): String = when (val quality = payload.number("signalQuality")) {
-        null -> "unknown"
-        in 0.8..Double.MAX_VALUE -> "good"
-        in 0.5..0.799999999 -> "fair"
-        in 0.000000001..0.499999999 -> "poor"
-        else -> "unknown"
-    }
-
-    private data class MutableTelemetrySample(
-        var heartRateBpm: Double? = null,
-        var ibiMs: List<Double>? = null,
-        var accelerometer: AccelerometerSampleDto? = null,
-        var skinTemperatureCelsius: Double? = null,
-        var heartRateQuality: String = "unknown",
-        var ibiQuality: String = "unknown",
-    ) {
-        fun toDto(timestampMillis: Long) = TelemetrySampleDto(
-            timestamp = Instant.ofEpochMilli(timestampMillis).toString(),
-            heartRateBpm = heartRateBpm,
-            ibiMs = httpIbiMs(ibiMs),
-            accelerometer = accelerometer,
-            skinTemperatureCelsius = skinTemperatureCelsius,
-            quality = SampleQualityDto(heartRateQuality, ibiQuality, "onBody"),
-        )
+        applyTelemetryReading(sample, type, payload)
     }
 
     private companion object {
@@ -498,6 +463,52 @@ class PhoneDataLayerListenerService : WearableListenerService() {
         const val PAIRING_SCHEMA_VERSION = 1
 
     }
+}
+
+internal data class MutableTelemetrySample(
+    var heartRateBpm: Double? = null,
+    var ibiMs: List<Double>? = null,
+    var accelerometer: AccelerometerSampleDto? = null,
+    var skinTemperatureCelsius: Double? = null,
+    var heartRateQuality: String = "unknown",
+    var ibiQuality: String = "unknown",
+) {
+    fun toDto(timestampMillis: Long) = TelemetrySampleDto(
+        timestamp = Instant.ofEpochMilli(timestampMillis).toString(),
+        heartRateBpm = heartRateBpm,
+        ibiMs = httpIbiMs(ibiMs),
+        accelerometer = accelerometer,
+        skinTemperatureCelsius = skinTemperatureCelsius,
+        quality = SampleQualityDto(heartRateQuality, ibiQuality, "onBody"),
+    )
+}
+
+internal fun applyTelemetryReading(
+    sample: MutableTelemetrySample,
+    type: String,
+    payload: JsonObject,
+) {
+    when (type.trim().lowercase(Locale.ROOT)) {
+        "heart_rate" -> {
+            sample.heartRateBpm = payload.number("bpm")
+            sample.ibiMs = (payload["ibiMillis"] as? JsonArray)
+                ?.mapNotNull { it.jsonPrimitive.contentOrNull?.toDoubleOrNull() }
+            sample.heartRateQuality = qualityFrom(payload)
+            sample.ibiQuality = sample.heartRateQuality
+        }
+        "accelerometer" -> payload.number("magnitudeG")?.let {
+            sample.accelerometer = AccelerometerSampleDto(x = it, y = 0.0, z = 0.0)
+        }
+        "skin_temperature" -> sample.skinTemperatureCelsius = payload.number("celsius")
+    }
+}
+
+private fun qualityFrom(payload: JsonObject): String = when (val quality = payload.number("signalQuality")) {
+    null -> "unknown"
+    in 0.8..Double.MAX_VALUE -> "good"
+    in 0.5..0.799999999 -> "fair"
+    in 0.000000001..0.499999999 -> "poor"
+    else -> "unknown"
 }
 
 private fun JsonObject.string(key: String): String? =
