@@ -405,7 +405,16 @@ class PhoneDataLayerListenerService : WearableListenerService() {
         val wearableDeviceId = obj.string("wearableDeviceId")?.takeIf(PairingPolicy::isValidUuid) ?: return
         if (!sessionContext.completePairing(sourceNodeId, nonce, wearableDeviceId)) {
             Log.w(TAG, "Rejected unsolicited or mismatched wearable pairing identity")
+            return
         }
+        sendPairingConfirm(sourceNodeId, nonce)
+    }
+
+    private fun sendPairingConfirm(wearNodeId: String, nonce: String) {
+        val payload = pairingConfirmPayload(nonce)
+        Wearable.getMessageClient(this)
+            .sendMessage(wearNodeId, PAIRING_CONFIRM_ROUTE, payload)
+            .addOnFailureListener { Log.w(TAG, "No se pudo confirmar la vinculacion con el reloj") }
     }
 
     private fun logRouteIdMismatch(kind: String) {
@@ -460,10 +469,22 @@ class PhoneDataLayerListenerService : WearableListenerService() {
         const val ACK_SUSPECTED_PREFIX = "/fog/v1/ack/events/suspected/"
         const val ACK_DECISION_PREFIX = "/fog/v1/ack/events/decision/"
         const val PAIRING_IDENTITY_ROUTE = "/fog/v1/pairing/identity"
+        const val PAIRING_CONFIRM_ROUTE = "/fog/v1/pairing/confirm"
         const val PAIRING_SCHEMA_VERSION = 1
 
     }
 }
+
+internal fun pairingConfirmPayload(nonce: String): ByteArray = JsonObject(
+    mapOf(
+        "schemaVersion" to kotlinx.serialization.json.JsonPrimitive(1),
+        "pairingNonce" to kotlinx.serialization.json.JsonPrimitive(nonce),
+    ),
+).toString().toByteArray(Charsets.UTF_8)
+
+internal fun pairingUnpairPayload(): ByteArray = JsonObject(
+    mapOf("schemaVersion" to kotlinx.serialization.json.JsonPrimitive(1)),
+).toString().toByteArray(Charsets.UTF_8)
 
 internal data class MutableTelemetrySample(
     var heartRateBpm: Double? = null,

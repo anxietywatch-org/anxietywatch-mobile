@@ -61,9 +61,15 @@ private class DebugHttpObservabilityInterceptor : Interceptor {
         val response = chain.proceed(request)
         if (BuildConfig.DEBUG) {
             val durationMs = (System.nanoTime() - startedAt) / 1_000_000
+            val errorBody = if (response.code >= 400) {
+                response.peekBody(16_384).string().replace(Regex("\\s+"), " ").take(1_000)
+            } else {
+                null
+            }
             Log.d(
                 TAG,
-                "HTTP ${request.method} ${request.url.encodedPath} -> ${response.code} (${durationMs}ms)",
+                "HTTP ${request.method} ${request.url.encodedPath} -> ${response.code} (${durationMs}ms)" +
+                    (errorBody?.let { " error=$it" } ?: ""),
             )
         }
         return response

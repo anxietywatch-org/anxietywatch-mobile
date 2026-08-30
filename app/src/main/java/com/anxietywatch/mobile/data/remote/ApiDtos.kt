@@ -1,6 +1,7 @@
 package com.anxietywatch.mobile.data.remote
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.EncodeDefault
 import java.util.UUID
 
 // Contrato CONFIRMADO en producción (https://api.mangoon.xyz) por el equipo de backend,
@@ -19,8 +20,11 @@ data class AccelerometerSampleDto(
 
 @Serializable
 data class SampleQualityDto(
+    @EncodeDefault
     val heartRate: String = "unknown", // good | fair | poor | unknown
+    @EncodeDefault
     val ibi: String = "unknown",
+    @EncodeDefault
     val wearingState: String = "unknown", // onBody | offBody | unknown
 )
 
