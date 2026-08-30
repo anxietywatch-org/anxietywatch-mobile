@@ -7,7 +7,7 @@ espressoCore = "3.5.1"
 lifecycleRuntimeKtx = "2.6.1"
 activityCompose = "1.13.0"
 kotlin = "2.2.10"
-composeBom = "2026.02.01"
+composeBom = "2026.08.00"
 googleServices = "4.4.4"
 firebaseBom = "34.5.0"
 # --- Nuevas, agregadas para AnxietyWatch (dejo el porqué de cada una al lado) ---
