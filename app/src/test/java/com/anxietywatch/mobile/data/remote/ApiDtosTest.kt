@@ -131,6 +131,35 @@ class ApiDtosTest {
     }
 
     @Test
+    fun failedBatchShapeSerializesRequiredQualityFields() {
+        val request = CreateTelemetryBatchRequest(
+            batchId = "123e4567-e89b-12d3-a456-426614174000",
+            deviceId = "123e4567-e89b-12d3-a456-426614174001",
+            sessionId = "123e4567-e89b-12d3-a456-426614174002",
+            startedAt = "2026-08-30T02:49:36.003Z",
+            endedAt = "2026-08-30T02:49:44.089Z",
+            sequence = 3,
+            samples = listOf(
+                TelemetrySampleDto(
+                    timestamp = "2026-08-30T02:49:36.003Z",
+                    ibiMs = emptyList(),
+                    quality = SampleQualityDto(wearingState = "onBody"),
+                ),
+            ),
+        )
+
+        val serialized = json.encodeToString(request)
+
+        assertTrue(serialized.contains("\"ibiMs\":[]"))
+        assertTrue(serialized.contains("\"heartRate\":\"unknown\""))
+        assertTrue(serialized.contains("\"ibi\":\"unknown\""))
+        assertTrue(serialized.contains("\"wearingState\":\"onBody\""))
+        assertTrue(serialized.contains("\"batchId\":\"123e4567-e89b-12d3-a456-426614174000\""))
+        assertTrue(serialized.contains("\"startedAt\":\"2026-08-30T02:49:36.003Z\""))
+        assertTrue(serialized.contains("\"endedAt\":\"2026-08-30T02:49:44.089Z\""))
+    }
+
+    @Test
     fun nonEmptyIbiIsSerializedWithoutChangingValues() {
         val sample = TelemetrySampleDto(
             timestamp = "2026-08-26T00:00:00Z",

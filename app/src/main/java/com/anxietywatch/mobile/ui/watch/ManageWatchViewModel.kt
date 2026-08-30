@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import android.content.Context
 import com.anxietywatch.mobile.data.bridge.MonitoringSessionContext
 import com.anxietywatch.mobile.data.bridge.WatchStateRepository
+import com.anxietywatch.mobile.data.bridge.pairingUnpairPayload
 import com.anxietywatch.mobile.service.MonitoringForegroundService
+import com.google.android.gms.wearable.Wearable
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.concurrent.TimeUnit
@@ -73,10 +75,22 @@ class ManageWatchViewModel @Inject constructor(
 
     fun disconnect() {
         viewModelScope.launch {
+            val nodeId = sessionContext.lastKnownWearNodeId()
+            if (nodeId != null) {
+                Wearable.getMessageClient(context).sendMessage(
+                    nodeId,
+                    PAIRING_UNPAIR_ROUTE,
+                    pairingUnpairPayload(),
+                )
+            }
             sessionContext.clearPairing()
             MonitoringForegroundService.stop(context)
             watchStateRepository.refresh()
         }
+    }
+
+    private companion object {
+        const val PAIRING_UNPAIR_ROUTE = "/fog/v1/pairing/unpair"
     }
 }
 

@@ -1,6 +1,7 @@
 package com.anxietywatch.mobile.data.bridge
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -44,5 +45,34 @@ class PairingPolicyTest {
     fun `same device can bind a newly selected node during reconnection`() {
         val reconnect = pending.copy(nonce = "123e4567-e89b-12d3-a456-426614174004", nodeId = "node-b")
         assertTrue(PairingPolicy.acceptsIdentity(reconnect, "node-b", reconnect.nonce!!, deviceX, 2_000L))
+    }
+
+    @Test
+    fun `pairing confirm payload preserves schema and nonce only`() {
+        val raw = pairingConfirmPayload(nonce).toString(Charsets.UTF_8)
+
+        assertTrue(raw.contains("\"schemaVersion\":1"))
+        assertTrue(raw.contains("\"pairingNonce\":\"$nonce\""))
+        assertFalse(raw.contains("node"))
+        assertFalse(raw.contains("deviceId"))
+    }
+
+    @Test
+    fun `pairing unpair payload preserves schema only`() {
+        val raw = pairingUnpairPayload().toString(Charsets.UTF_8)
+
+        assertTrue(raw.contains("\"schemaVersion\":1"))
+        assertFalse(raw.contains("node"))
+        assertFalse(raw.contains("deviceId"))
+        assertFalse(raw.contains("pairingNonce"))
+    }
+
+    @Test
+    fun `valid identity is the only condition for sending confirm`() {
+        assertTrue(PairingPolicy.acceptsIdentity(pending, "node-a", nonce, deviceX, 2_000L))
+        assertFalse(PairingPolicy.acceptsIdentity(pending, "node-b", nonce, deviceX, 2_000L))
+        assertFalse(PairingPolicy.acceptsIdentity(pending, "node-a", "123e4567-e89b-12d3-a456-426614174009", deviceX, 2_000L))
+        assertFalse(PairingPolicy.acceptsIdentity(pending, "node-a", nonce, deviceX, 301_001L))
+        assertEquals("node-a", pending.nodeId)
     }
 }
