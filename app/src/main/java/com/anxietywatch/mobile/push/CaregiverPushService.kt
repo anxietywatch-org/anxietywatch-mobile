@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -64,7 +65,8 @@ class CaregiverPushService : FirebaseMessagingService() {
         val eventId = message.data[EVENT_ID_KEY]?.trim()?.takeIf { it.isNotEmpty() }
         val patientName = message.data[PATIENT_NAME_KEY]?.trim()?.takeIf { it.isNotEmpty() }
         val alertMessage = message.data[ALERT_MESSAGE_KEY]?.trim()?.takeIf { it.isNotEmpty() }
-        val openAppIntent = Intent(this, MainActivity::class.java).apply {
+        val openAppIntent = Intent().apply {
+            component = ComponentName(this@CaregiverPushService, MainActivity::class.java)
             setPackage(packageName)
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             if (eventId != null && patientName != null && alertMessage != null) {
