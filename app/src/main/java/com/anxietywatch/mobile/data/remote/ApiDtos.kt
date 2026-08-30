@@ -87,6 +87,7 @@ data class UserResponseDto(
     val planId: String,
     val emailVerified: Boolean,
     val avatarUrl: String? = null,
+    val role: String? = null,
 )
 
 @Serializable

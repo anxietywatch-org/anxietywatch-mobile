@@ -1,6 +1,7 @@
 package com.anxietywatch.mobile.navigation
 
 import android.util.Log
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,6 +56,7 @@ import com.anxietywatch.mobile.ui.wellness.PatientDetailScreen
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 
 @Composable
@@ -101,7 +103,7 @@ fun AnxietyWatchNavHost(
                 scope.launch {
                     val destination = if (sessionRepository.hasValidSession()) {
                         MonitoringForegroundService.start(context)
-                        registerActivePushToken(api, scope)
+                        registerActivePushToken(context, api, scope)
                         val role = sessionRepository.roleFlow.first()
                         if (role.equals("family_member", ignoreCase = true) && criticalAlertPayload != null) {
                             activeCriticalAlert = criticalAlertPayload
@@ -126,7 +128,7 @@ fun AnxietyWatchNavHost(
                 onActivated = { role ->
                     showExpiredBanner = false
                     MonitoringForegroundService.start(context)
-                    registerActivePushToken(api, scope)
+                    registerActivePushToken(context, api, scope)
                     navController.navigate(permissionDestination(role)) {
                         popUpTo(Routes.TokenEntry.route) { inclusive = true }
                     }
@@ -292,7 +294,8 @@ fun AnxietyWatchNavHost(
     }
 }
 
-private fun registerActivePushToken(api: AnxietyWatchApi, scope: CoroutineScope) {
+private fun registerActivePushToken(context: Context, api: AnxietyWatchApi, scope: CoroutineScope) {
+    if (FirebaseApp.getApps(context).isEmpty()) return
     FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
         val token = if (task.isSuccessful) task.result?.takeIf(String::isNotBlank) else null
         if (token == null) {

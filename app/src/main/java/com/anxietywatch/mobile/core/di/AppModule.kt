@@ -9,8 +9,6 @@ import com.anxietywatch.mobile.data.bridge.DataLayerWearAckSender
 import com.anxietywatch.mobile.data.bridge.WearAckSender
 import com.anxietywatch.mobile.data.bridge.CurrentWearablePairing
 import com.anxietywatch.mobile.data.bridge.MonitoringSessionContext
-import com.anxietywatch.mobile.data.local.FrontendPreferences
-import com.anxietywatch.mobile.data.local.FrontendPreferencesStore
 import com.anxietywatch.mobile.data.remote.AnxietyWatchApi
 import com.anxietywatch.mobile.data.remote.ApiClient
 import com.anxietywatch.mobile.data.remote.SessionExpiryNotifier
