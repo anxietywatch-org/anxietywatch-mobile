@@ -47,10 +47,18 @@ class PatientDetailViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<AsyncUiState<PatientDetailUiModel>>(AsyncUiState.Loading)
     val uiState: StateFlow<AsyncUiState<PatientDetailUiModel>> = _uiState.asStateFlow()
 
-    fun loadPatient(patientId: String) {
-        _uiState.value = AsyncUiState.Loading
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    fun loadPatient(patientId: String, isManualRefresh: Boolean = false) {
+        if (isManualRefresh) {
+            _isRefreshing.value = true
+        } else {
+            _uiState.value = AsyncUiState.Loading
+        }
         if (patientId.isBlank()) {
             _uiState.value = AsyncUiState.Empty
+            _isRefreshing.value = false
             return
         }
 
@@ -104,6 +112,8 @@ class PatientDetailViewModel @Inject constructor(
                 _uiState.value = AsyncUiState.Error(
                     "No pudimos cargar la información del paciente. Revisa tu conexión e intenta de nuevo.",
                 )
+            } finally {
+                if (isManualRefresh) _isRefreshing.value = false
             }
         }
     }
