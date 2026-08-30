@@ -20,6 +20,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -55,6 +56,7 @@ fun DashboardCaregiverScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val linkPatientUiState by viewModel.linkPatientUiState.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     var code by remember { mutableStateOf("") }
 
     LaunchedEffect(linkPatientUiState) {
@@ -62,16 +64,25 @@ fun DashboardCaregiverScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().imePadding()) {
-        Box(modifier = Modifier.weight(1f)) {
-            when (val state = uiState) {
-                AsyncUiState.Loading -> LoadingState("Cargando pacientes...")
-                AsyncUiState.Empty -> EmptyState(
-                    icon = Icons.Default.People,
-                    title = "No hay pacientes vinculados todavía",
-                    message = "Cuando se vincule un paciente, aparecerá aquí.",
-                )
-                is AsyncUiState.Error -> ErrorState(state.message, viewModel::loadDashboard)
-                is AsyncUiState.Success -> DashboardContent(state.data, onPatientClick)
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.loadDashboard(isManualRefresh = true) },
+            modifier = Modifier.weight(1f),
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (val state = uiState) {
+                    AsyncUiState.Loading -> LoadingState("Cargando pacientes...")
+                    AsyncUiState.Empty -> EmptyState(
+                        icon = Icons.Default.People,
+                        title = "No hay pacientes vinculados todavía",
+                        message = "Cuando se vincule un paciente, aparecerá aquí.",
+                    )
+                    is AsyncUiState.Error -> ErrorState(
+                        message = state.message,
+                        onRetry = { viewModel.loadDashboard() },
+                    )
+                    is AsyncUiState.Success -> DashboardContent(state.data, onPatientClick)
+                }
             }
         }
         LinkPatientSection(

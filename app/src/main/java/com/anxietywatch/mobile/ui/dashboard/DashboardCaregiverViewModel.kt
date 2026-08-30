@@ -36,10 +36,17 @@ class DashboardCaregiverViewModel @Inject constructor(
     private val _linkPatientUiState = MutableStateFlow<LinkPatientUiState>(LinkPatientUiState.Idle)
     val linkPatientUiState: StateFlow<LinkPatientUiState> = _linkPatientUiState.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     init { loadDashboard() }
 
-    fun loadDashboard() {
-        _uiState.value = AsyncUiState.Loading
+    fun loadDashboard(isManualRefresh: Boolean = false) {
+        if (isManualRefresh) {
+            _isRefreshing.value = true
+        } else {
+            _uiState.value = AsyncUiState.Loading
+        }
         viewModelScope.launch {
             try {
                 val patients = api.getCaregiverPatients().map { patient ->
@@ -59,6 +66,8 @@ class DashboardCaregiverViewModel @Inject constructor(
                 _uiState.value = AsyncUiState.Error(
                     "No pudimos cargar tus pacientes. Revisa tu conexión e intenta de nuevo.",
                 )
+            } finally {
+                if (isManualRefresh) _isRefreshing.value = false
             }
         }
     }
