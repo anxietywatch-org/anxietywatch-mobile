@@ -14,12 +14,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.Card
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -52,9 +55,11 @@ data class CaregiverPatientUiModel(
 fun DashboardCaregiverScreen(
     viewModel: DashboardCaregiverViewModel = hiltViewModel(),
     onPatientClick: (String) -> Unit = {},
+    onLogout: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val linkPatientUiState by viewModel.linkPatientUiState.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     var code by remember { mutableStateOf("") }
 
     LaunchedEffect(linkPatientUiState) {
@@ -62,16 +67,34 @@ fun DashboardCaregiverScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().imePadding()) {
-        Box(modifier = Modifier.weight(1f)) {
-            when (val state = uiState) {
-                AsyncUiState.Loading -> LoadingState("Cargando pacientes...")
-                AsyncUiState.Empty -> EmptyState(
-                    icon = Icons.Default.People,
-                    title = "No hay pacientes vinculados todavía",
-                    message = "Cuando se vincule un paciente, aparecerá aquí.",
-                )
-                is AsyncUiState.Error -> ErrorState(state.message, viewModel::loadDashboard)
-                is AsyncUiState.Success -> DashboardContent(state.data, onPatientClick)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            TextButton(onClick = onLogout) {
+                androidx.compose.material3.Icon(Icons.Default.Logout, contentDescription = null)
+                Text("Cerrar sesión", modifier = Modifier.padding(start = 6.dp))
+            }
+        }
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.loadDashboard(isManualRefresh = true) },
+            modifier = Modifier.weight(1f),
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (val state = uiState) {
+                    AsyncUiState.Loading -> LoadingState("Cargando pacientes...")
+                    AsyncUiState.Empty -> EmptyState(
+                        icon = Icons.Default.People,
+                        title = "No hay pacientes vinculados todavía",
+                        message = "Cuando se vincule un paciente, aparecerá aquí.",
+                    )
+                    is AsyncUiState.Error -> ErrorState(
+                        message = state.message,
+                        onRetry = { viewModel.loadDashboard() },
+                    )
+                    is AsyncUiState.Success -> DashboardContent(state.data, onPatientClick)
+                }
             }
         }
         LinkPatientSection(

@@ -25,11 +25,13 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.anxietywatch.mobile.data.remote.SessionExpiryNotifier
 import com.anxietywatch.mobile.data.remote.SessionRepository
 import com.anxietywatch.mobile.data.remote.AnxietyWatchApi
 import com.anxietywatch.mobile.service.MonitoringForegroundService
 import com.anxietywatch.mobile.push.CaregiverAlertPayload
+import com.anxietywatch.mobile.push.logoutWithPushCleanup
 import com.anxietywatch.mobile.push.PushTokenRegistrar
 import com.anxietywatch.mobile.ui.alerts.CriticalAlertUiModel
 import com.anxietywatch.mobile.ui.dashboard.DashboardCaregiverScreen
@@ -58,6 +60,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 @Composable
 fun AnxietyWatchNavHost(
@@ -70,8 +74,16 @@ fun AnxietyWatchNavHost(
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
     var showExpiredBanner by remember { mutableStateOf(false) }
     var activeCriticalAlert by remember { mutableStateOf<CaregiverAlertPayload?>(null) }
+    val authenticatedRoute = sessionRepository.hasValidSession() &&
+        currentBackStackEntry?.destination?.route !in setOf(
+        Routes.Splash.route,
+        Routes.TokenEntry.route,
+    )
+
+    NotificationPermissionRequester(isAuthenticated = authenticatedRoute)
 
     LaunchedEffect(sessionExpiryNotifier, navController) {
         sessionExpiryNotifier.events.collect {
@@ -176,7 +188,14 @@ fun AnxietyWatchNavHost(
                             },
                             onLogout = {
                                 scope.launch {
-                                    sessionRepository.clearSession()
+                                    logoutWithPushCleanup(
+                                        tokenProvider = { activeFcmToken(context) },
+                                        unregister = { token -> PushTokenRegistrar.unregister(api, token) },
+                                        clearSession = { sessionRepository.clearSession() },
+                                        onUnregisterFailure = { error ->
+                                            Log.w("PushRegistration", "No se pudo limpiar el dispositivo push al cerrar sesión.", error)
+                                        },
+                                    )
                                     navController.navigate(Routes.TokenEntry.route) {
                                         popUpTo(0) { inclusive = true }
                                     }
@@ -197,6 +216,21 @@ fun AnxietyWatchNavHost(
             DashboardCaregiverScreen(
                 onPatientClick = { patientId ->
                     navController.navigate(Routes.PatientDetail.build(patientId))
+                },
+                onLogout = {
+                    scope.launch {
+                        logoutWithPushCleanup(
+                            tokenProvider = { activeFcmToken(context) },
+                            unregister = { token -> PushTokenRegistrar.unregister(api, token) },
+                            clearSession = { sessionRepository.clearSession() },
+                            onUnregisterFailure = { error ->
+                                Log.w("PushRegistration", "No se pudo limpiar el dispositivo push al cerrar sesión.", error)
+                            },
+                        )
+                        navController.navigate(Routes.TokenEntry.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
                 },
             )
         }
@@ -219,7 +253,14 @@ fun AnxietyWatchNavHost(
                 onManageWatch = { navController.navigate(Routes.ManageWatch.route) },
                 onLogout = {
                     scope.launch {
-                        sessionRepository.clearSession()
+                        logoutWithPushCleanup(
+                            tokenProvider = { activeFcmToken(context) },
+                            unregister = { token -> PushTokenRegistrar.unregister(api, token) },
+                            clearSession = { sessionRepository.clearSession() },
+                            onUnregisterFailure = { error ->
+                                Log.w("PushRegistration", "No se pudo limpiar el dispositivo push al cerrar sesión.", error)
+                            },
+                        )
                         navController.navigate(Routes.TokenEntry.route) {
                             popUpTo(0) { inclusive = true }
                         }
@@ -311,6 +352,15 @@ private fun registerActivePushToken(context: Context, api: AnxietyWatchApi, scop
                 .onFailure { error ->
                     Log.e("PushRegistration", "No se pudo registrar el token FCM activo.", error)
                 }
+        }
+    }
+}
+
+private suspend fun activeFcmToken(context: Context): String? {
+    if (FirebaseApp.getApps(context).isEmpty()) return null
+    return suspendCoroutine { continuation ->
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            continuation.resume(if (task.isSuccessful) task.result?.takeIf(String::isNotBlank) else null)
         }
     }
 }

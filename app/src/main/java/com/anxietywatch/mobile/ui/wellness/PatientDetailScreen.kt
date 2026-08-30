@@ -26,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -51,20 +52,27 @@ fun PatientDetailScreen(
     viewModel: PatientDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     LaunchedEffect(patientId) { viewModel.loadPatient(patientId) }
 
-    when (val state = uiState) {
-        AsyncUiState.Loading -> LoadingState("Cargando información del paciente...")
-        AsyncUiState.Empty -> EmptyState(
-            icon = Icons.Default.PersonOff,
-            title = "Información no disponible",
-            message = "Todavía no hay datos de este paciente para mostrar.",
-        )
-        is AsyncUiState.Error -> ErrorState(
-            message = state.message,
-            onRetry = { viewModel.loadPatient(patientId) },
-        )
-        is AsyncUiState.Success -> PatientDetailContent(state.data, onEventClick)
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = { viewModel.loadPatient(patientId, isManualRefresh = true) },
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        when (val state = uiState) {
+            AsyncUiState.Loading -> LoadingState("Cargando información del paciente...")
+            AsyncUiState.Empty -> EmptyState(
+                icon = Icons.Default.PersonOff,
+                title = "Información no disponible",
+                message = "Todavía no hay datos de este paciente para mostrar.",
+            )
+            is AsyncUiState.Error -> ErrorState(
+                message = state.message,
+                onRetry = { viewModel.loadPatient(patientId) },
+            )
+            is AsyncUiState.Success -> PatientDetailContent(state.data, onEventClick)
+        }
     }
 }
 
