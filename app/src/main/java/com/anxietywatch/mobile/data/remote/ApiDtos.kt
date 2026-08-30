@@ -269,3 +269,74 @@ data class EpisodeDto(
     val symptoms: List<String>,
     val notes: String? = null,
 )
+
+// --- Cuidador ---
+
+@Serializable
+data class CaregiverPatientDto(
+    val patientId: String,
+    val fullName: String,
+    val avatarUrl: String? = null,
+    val role: String? = null,
+    val linkedAt: String? = null,
+)
+
+@Serializable
+data class CaregiverPatientDetailDto(
+    val patientId: String,
+    val fullName: String,
+    val status: String? = null,
+)
+
+@Serializable
+data class CaregiverEpisodeDto(
+    val id: String,
+    val date: String,
+    val intensity: Int? = null,
+    val symptoms: List<String> = emptyList(),
+    val notes: String? = null,
+    val detailsHidden: Boolean? = null,
+)
+
+@Serializable
+data class CaregiverTelemetryLatestDto(
+    val measuredAt: String,
+    val heartRateBpm: Double? = null,
+    val ageSeconds: Int? = null,
+    val quality: String? = null,
+)
+
+@Serializable
+data class CaregiverEventDto(
+    val eventId: String,
+    val title: String? = null,
+    val description: String? = null,
+    val occurredAt: String? = null,
+    val type: String? = null,
+    val status: String? = null,
+    val category: String? = null,
+    val summary: String? = null,
+    val metrics: List<CaregiverEventMetricDto> = emptyList(),
+    val location: String? = null,
+    val systemNotes: String? = null,
+    val tags: List<String> = emptyList(),
+)
+
+@Serializable
+data class CaregiverEventMetricDto(
+    val title: String,
+    val value: String,
+    val detail: String? = null,
+)
+
+@Serializable
+data class LinkCaregiverPatientRequest(val code: String)
+
+@Serializable
+data class RegisterDeviceRequest(
+    val platform: String,
+    val token: String,
+)
+
+@Serializable
+data class UnregisterDeviceRequest(val token: String)

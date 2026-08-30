@@ -34,7 +34,7 @@ private data class SupportStep(
 )
 
 @Composable
-fun SupportGuideScreen(eventId: String, onFinished: () -> Unit) {
+fun SupportGuideScreen(onFinished: () -> Unit) {
     val steps = remember {
         listOf(
             SupportStep(
@@ -123,6 +123,5 @@ fun SupportGuideScreen(eventId: String, onFinished: () -> Unit) {
         ) {
             Text(if (currentStep == steps.lastIndex) "Entendido" else "Siguiente")
         }
-        Text("Evento: $eventId", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
     }
 }

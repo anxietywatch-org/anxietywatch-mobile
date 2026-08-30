@@ -19,6 +19,7 @@ local.properties
 .env.*
 *.jks
 *.keystore
+app/google-services.json
 
 # Build artifacts and diagnostics
 *.apk

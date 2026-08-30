@@ -102,6 +102,14 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <service
+            android:name=".push.CaregiverPushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- E5: revive el monitoreo si el teléfono se reinició, solo si el token de 30 min
              sigue vivo. -->
         <receiver
