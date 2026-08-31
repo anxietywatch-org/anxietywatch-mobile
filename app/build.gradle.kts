@@ -4,6 +4,12 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt.android)
+    alias(libs.plugins.google.services) apply false
+}
+
+// CI no almacena google-services.json. Firebase se configura en builds que sí tienen el archivo local.
+if (file("google-services.json").isFile) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 android {
@@ -61,6 +67,9 @@ kotlin {
 }
 
 dependencies {
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
+
     // --- Compose + Material3 (mismas versiones que ya trae tu libs.versions.toml) ---
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

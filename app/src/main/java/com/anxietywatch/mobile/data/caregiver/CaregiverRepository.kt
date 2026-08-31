@@ -110,7 +110,9 @@ class RealCaregiverRepository @Inject constructor(
 
 private fun CaregiverEventResponseDto.toSource() = CaregiverRecentEventSource(
     id = eventId,
-    title = type,
+    title = title?.takeIf { it.isNotBlank() }
+        ?: type?.takeIf { it.isNotBlank() }
+        ?: "Evento",
     description = status,
     occurredAt = occurredAt,
 )

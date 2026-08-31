@@ -21,13 +21,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.anxietywatch.mobile.ui.caregiver.CaregiverTopBar
+import com.anxietywatch.mobile.ui.common.AlertRow
 import com.anxietywatch.mobile.ui.common.EmptyState
 import com.anxietywatch.mobile.ui.common.ErrorState
 import com.anxietywatch.mobile.ui.common.LoadingState
 import com.anxietywatch.mobile.ui.common.ScreenScaffold
 import com.anxietywatch.mobile.ui.common.SectionHeader
 import com.anxietywatch.mobile.ui.common.StatusBadge
-import com.anxietywatch.mobile.ui.common.AlertRow
 
 @Composable
 fun PatientDetailScreen(
@@ -47,7 +47,11 @@ fun PatientDetailScreen(
             CaregiverTopBar("Detalle del paciente", onBack = onBack)
             when (val current = collected) {
                 CaregiverPatientDetailUiState.Loading -> LoadingState("Cargando paciente...", Modifier.weight(1f))
-                is CaregiverPatientDetailUiState.Error -> ErrorState(current.message, onRetry ?: resolved?.let { it::retry }, Modifier.weight(1f))
+                is CaregiverPatientDetailUiState.Error -> ErrorState(
+                    current.message,
+                    onRetry ?: resolved?.let { it::retry },
+                    Modifier.weight(1f),
+                )
                 is CaregiverPatientDetailUiState.Content -> PatientDetailContent(
                     patient = current.data,
                     onEventClick = onEventClick,
@@ -84,11 +88,19 @@ private fun PatientDetailContent(
                     style = MaterialTheme.typography.headlineSmall,
                 )
                 patient.lastUpdated?.let {
-                    Text("Última medición: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Última medición: $it",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
-        Text("Eventos recientes", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
+        Text(
+            "Eventos recientes",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
+        )
         if (patient.recentEvents.isEmpty()) {
             EmptyState("No hay eventos disponibles.", "Cuando exista actividad compartida, aparecerá aquí.")
         } else {
@@ -109,15 +121,26 @@ private fun PatientDetailContent(
                             }
                         }
                         event.occurredAt?.let {
-                            Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                 }
             }
         }
-        Text("Alertas recientes", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
+        Text(
+            "Alertas recientes",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
+        )
         if (patient.recentAlerts.isEmpty()) {
-            EmptyState("No hay alertas recientes.", "Las alertas compartidas aparecerán aquí cuando estén disponibles.")
+            EmptyState(
+                "No hay alertas recientes.",
+                "Las alertas compartidas aparecerán aquí cuando estén disponibles.",
+            )
         } else {
             patient.recentAlerts.forEach { alert ->
                 AlertRow(

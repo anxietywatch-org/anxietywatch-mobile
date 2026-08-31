@@ -133,4 +133,31 @@ private class FakeCaregiverApi(
         failure?.let { throw it }
         return heartRate
     }
+
+    override suspend fun getCaregiverPatient(patientId: String): CaregiverPatientDetailDto {
+        failure?.let { throw it }
+        return detail
+    }
+
+    override suspend fun getCaregiverPatientEpisodes(patientId: String): List<CaregiverEpisodeDto> {
+        failure?.let { throw it }
+        return emptyList()
+    }
+
+    override suspend fun getCaregiverPatientLatestTelemetry(patientId: String): CaregiverTelemetryLatestDto {
+        failure?.let { throw it }
+        return heartRate ?: CaregiverTelemetryLatestDto(measuredAt = "1970-01-01T00:00:00Z")
+    }
+
+    override suspend fun linkCaregiverPatient(request: LinkCaregiverPatientRequest) {
+        fail()
+    }
+
+    override suspend fun registerDevice(request: RegisterDeviceRequest) {
+        fail()
+    }
+
+    override suspend fun unregisterDevice(request: UnregisterDeviceRequest) {
+        fail()
+    }
 }

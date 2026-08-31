@@ -69,6 +69,14 @@ fun ManageWatchScreen(
                 Text("Vincular reloj")
             }
         }
+        if (!state.pairingStored) {
+            Button(
+                onClick = onPairWatch,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            ) {
+                Text("Vincular reloj")
+            }
+        }
         SectionTitle("Sincronización")
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -106,7 +114,7 @@ fun ManageWatchScreen(
             TextButton(onClick = {}, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Lectura de Pulso")
-                    Text("Cada 5 s")
+                    Text("Monitoreo continuo")
                 }
             }
         }

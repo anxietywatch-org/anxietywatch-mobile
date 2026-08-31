@@ -30,9 +30,11 @@ interface PendingUploadDao {
     @Query("SELECT * FROM pending_telemetry_batches ORDER BY createdAtMillis DESC LIMIT 1")
     fun observeMostRecentTelemetryBatch(): Flow<PendingTelemetryBatchEntity?>
 
+    @Query("SELECT * FROM pending_telemetry_batches ORDER BY createdAtMillis DESC LIMIT :limit OFFSET :offset")
+    suspend fun getTelemetryBatchPage(limit: Int, offset: Int): List<PendingTelemetryBatchEntity>
+
     @Query("UPDATE pending_telemetry_batches SET syncStatus = :status, lastError = :reason WHERE batchId = :batchId")
     suspend fun updateTelemetryBatchStatus(batchId: String, status: String, reason: String? = null)
-
     @Query("UPDATE pending_telemetry_batches SET attemptCount = attemptCount + 1, lastError = :reason WHERE batchId = :batchId")
     suspend fun incrementTelemetryAttempt(batchId: String, reason: String? = null)
 

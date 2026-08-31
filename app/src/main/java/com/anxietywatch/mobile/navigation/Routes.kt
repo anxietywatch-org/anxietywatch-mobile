@@ -1,5 +1,8 @@
 package com.anxietywatch.mobile.navigation
 
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
+
 sealed class Routes(val route: String) {
     data object Splash : Routes("splash")
     data object TokenEntry : Routes("token_entry") // E02: ingreso por token, sin login tradicional
@@ -21,12 +24,22 @@ sealed class Routes(val route: String) {
         fun build(alertId: String) = "caregiver_alert_detail/$alertId"
     }
     data object PatientDetail : Routes("patient_detail/{patientId}") { // E16
-        fun build(patientId: String) = "patient_detail/$patientId"
+        fun build(patientId: String) = "patient_detail/${routeSegment(patientId)}"
     }
-    data object EventDetail : Routes("event_detail/{eventId}") {
-        fun build(eventId: String) = "event_detail/$eventId"
+    data object CriticalAlert : Routes("critical_alert/{eventId}") { // E17
+        fun build(eventId: String) = "critical_alert/${routeSegment(eventId)}"
     }
-    data object SupportGuide : Routes("support_guide/{eventId}") { // E18
-        fun build(eventId: String) = "support_guide/$eventId"
+    data object EventDetail : Routes("event_detail/{patientId}/{eventId}") {
+        fun build(patientId: String, eventId: String) =
+            "event_detail/${routeSegment(patientId)}/${routeSegment(eventId)}"
+
+        fun build(eventId: String) = LegacyEventDetail.build(eventId)
     }
+    data object LegacyEventDetail : Routes("event_detail_legacy/{eventId}") {
+        fun build(eventId: String) = "event_detail_legacy/${routeSegment(eventId)}"
+    }
+    data object SupportGuide : Routes("support_guide") // E18: contenido editorial, no depende del evento
 }
+
+private fun routeSegment(value: String): String =
+    URLEncoder.encode(value, StandardCharsets.UTF_8.name()).replace("+", "%20")

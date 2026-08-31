@@ -3,8 +3,8 @@ package com.anxietywatch.mobile.data.remote
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.PATCH
-import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.POST
 import retrofit2.http.Query
 
 /**
@@ -64,21 +64,42 @@ interface AnxietyWatchApi {
     @GET("api/episodes")
     suspend fun getEpisodes(@Query("range") range: Int = 7): List<EpisodeDto>
 
-    // --- Caregiver read API (backend develop @ 8218d3c) ---
+    // --- Caregiver read API ---
     @GET("api/caregiver/patients")
     suspend fun getCaregiverPatients(): List<CaregiverPatientResponseDto>
 
     @GET("api/caregiver/patients/{patientId}")
     suspend fun getCaregiverPatientDetail(@Path("patientId") patientId: String): CaregiverPatientDetailResponseDto
 
+    @GET("api/caregiver/patients/{patientId}")
+    suspend fun getCaregiverPatient(@Path("patientId") patientId: String): CaregiverPatientDetailDto
+
     @GET("api/caregiver/patients/{patientId}/events")
     suspend fun getCaregiverPatientEvents(
         @Path("patientId") patientId: String,
         @Query("limit") limit: Int = 50,
-    ): List<CaregiverEventResponseDto>
+    ): List<CaregiverEventDto>
 
     @GET("api/caregiver/patients/{patientId}/telemetry/latest")
     suspend fun getCaregiverLatestHeartRate(
         @Path("patientId") patientId: String,
     ): CaregiverLatestHeartRateResponseDto?
+
+    @GET("api/caregiver/patients/{patientId}/episodes")
+    suspend fun getCaregiverPatientEpisodes(@Path("patientId") patientId: String): List<CaregiverEpisodeDto>
+
+    @GET("api/caregiver/patients/{patientId}/telemetry/latest")
+    suspend fun getCaregiverPatientLatestTelemetry(
+        @Path("patientId") patientId: String,
+    ): CaregiverTelemetryLatestDto
+
+    @POST("api/caregiver/patients/link")
+    suspend fun linkCaregiverPatient(@Body request: LinkCaregiverPatientRequest)
+
+    // --- Dispositivos push ---
+    @POST("api/devices/register")
+    suspend fun registerDevice(@Body request: RegisterDeviceRequest)
+
+    @POST("api/devices/unregister")
+    suspend fun unregisterDevice(@Body request: UnregisterDeviceRequest)
 }
