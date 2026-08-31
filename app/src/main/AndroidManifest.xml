@@ -77,21 +77,23 @@
             </intent-filter>
         </activity>
 
-        <!-- EL PUENTE CON EL RELOJ. Google Play Services lo despierta automáticamente
-             cuando llega un MessageEvent o DataEvent en las rutas /anxietywatch/*, incluso
-             con la app completamente cerrada — no depende de que MainActivity esté viva. -->
-        <!-- TODO(seguridad/deuda técnica): BIND_LISTENER está deprecado por Google desde 2016
-             (recomiendan filtrar por path/prefix con listeners vía API en vez de recibir TODOS
-             los eventos de Wear). Sigue siendo funcional, ya probado con hardware real, pero
-             migrar a CapabilityClient/manifest listeners filtrados es un cambio de arquitectura
-             que requiere decisión explícita, no un fix automático de lint. Se suprime el check
-             a propósito mientras tanto. -->
+        <!-- EL PUENTE CON EL RELOJ. Google Play Services despierta este servicio cuando
+             llega un MessageEvent o DataEvent bajo /fog/v1/*, incluso con la app cerrada.
+             Filtrado por scheme + host + pathPrefix (los 3 obligatorios para que el
+             intent-filter matchee) — reemplaza el BIND_LISTENER deprecado que recibía
+             TODOS los eventos de Wear y rompía el lint WearableBindListener.
+             Requiere el mismo applicationId (com.anxietywatch.mobile) en el APK del
+             reloj + firma compatible, o GMS rechaza la entrega. -->
         <service
             android:name=".data.bridge.PhoneDataLayerListenerService"
-            android:exported="true"
-            tools:ignore="WearableBindListener">
+            android:exported="true">
             <intent-filter>
-                <action android:name="com.google.android.gms.wearable.BIND_LISTENER" />
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:pathPrefix="/fog/v1" />
             </intent-filter>
         </service>
 

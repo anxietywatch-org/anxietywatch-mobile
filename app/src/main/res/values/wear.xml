@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Capability que anuncia este teléfono en el bus de Wear Data Layer. El reloj la usa
+  con CapabilityClient.getCapability("fog_phone_v1", FILTER_REACHABLE) para descubrir
+  que hay un teléfono AnxietyWatch alcanzable antes de enviar telemetría/eventos.
+  El reloj publica su contraparte "fog_watch_v1".
+-->
+<resources>
+    <string-array name="android_wear_capabilities" translatable="false">
+        <item>fog_phone_v1</item>
+    </string-array>
+</resources>
