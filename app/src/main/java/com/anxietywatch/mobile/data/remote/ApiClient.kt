@@ -85,10 +85,9 @@ object ApiClient {
     private val json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
-        // El backend valida campos con valor por defecto (p.ej. samples[].quality de
-        // telemetría es obligatorio). Sin esto kotlinx omite toda propiedad == a su
-        // default y el backend responde 400 "The Quality field is required."
-        encodeDefaults = true
+        // Sin encodeDefaults global: los campos obligatorios con valor por defecto que
+        // el backend exige (p.ej. samples[].quality de telemetría) se fuerzan de forma
+        // puntual con @EncodeDefault en el DTO, no cambiando el serializador entero.
     }
 
     fun create(

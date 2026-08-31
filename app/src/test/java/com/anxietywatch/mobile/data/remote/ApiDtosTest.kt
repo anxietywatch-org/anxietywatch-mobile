@@ -160,6 +160,40 @@ class ApiDtosTest {
     }
 
     @Test
+    fun sampleWithDefaultQualityStillSerializesTheQualityObject() {
+        // Muestra sólo-acelerómetro: quality queda en su valor por defecto. @EncodeDefault
+        // en TelemetrySampleDto.quality debe emitirlo igual (si no -> 400 del backend).
+        val sample = TelemetrySampleDto(
+            timestamp = "2026-08-30T02:49:36.003Z",
+            ibiMs = emptyList(),
+            accelerometer = AccelerometerSampleDto(x = 0.1, y = 0.2, z = 0.98),
+        )
+
+        val serialized = json.encodeToString(sample)
+
+        assertTrue(serialized.contains("\"quality\":{"))
+        assertTrue(serialized.contains("\"heartRate\":\"unknown\""))
+        assertTrue(serialized.contains("\"ibi\":\"unknown\""))
+        assertTrue(serialized.contains("\"wearingState\":\"unknown\""))
+    }
+
+    @Test
+    fun nonTelemetryRequestsAreNotBloatedByDefaults() {
+        // Regresión: el serializador NO tiene encodeDefaults global, así que otras
+        // requests siguen sin emitir campos por defecto (userId null se omite).
+        val sos = json.encodeToString(
+            TriggerSosRequest(
+                eventId = "123e4567-e89b-12d3-a456-426614174000",
+                deviceId = "123e4567-e89b-12d3-a456-426614174001",
+                triggeredAt = "2026-08-30T02:49:36.003Z",
+                source = "WATCH",
+                reason = "prueba",
+            ),
+        )
+        assertTrue(!sos.contains("\"userId\""))
+    }
+
+    @Test
     fun nonEmptyIbiIsSerializedWithoutChangingValues() {
         val sample = TelemetrySampleDto(
             timestamp = "2026-08-26T00:00:00Z",
