@@ -20,17 +20,24 @@ class CaregiverPatientDetailViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<CaregiverPatientDetailUiState>(CaregiverPatientDetailUiState.Loading)
     val uiState: StateFlow<CaregiverPatientDetailUiState> = _uiState.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     init {
         load()
     }
 
     fun retry() = load()
 
-    private fun load() {
-        _uiState.value = CaregiverPatientDetailUiState.Loading
+    fun refresh() = load(isManualRefresh = true)
+
+    private fun load(isManualRefresh: Boolean = false) {
+        if (!isManualRefresh) _uiState.value = CaregiverPatientDetailUiState.Loading
+        _isRefreshing.value = isManualRefresh
         viewModelScope.launch {
             if (patientId.isBlank()) {
                 _uiState.value = CaregiverPatientDetailUiState.Error("Paciente no encontrado.")
+                _isRefreshing.value = false
                 return@launch
             }
             runCatching { repository.getPatientDetail(patientId) }
@@ -44,6 +51,7 @@ class CaregiverPatientDetailViewModel @Inject constructor(
                         error.message ?: "No se pudo cargar el paciente.",
                     )
                 }
+            _isRefreshing.value = false
         }
     }
 }

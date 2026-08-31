@@ -12,8 +12,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -29,6 +31,7 @@ import com.anxietywatch.mobile.ui.common.ScreenScaffold
 import com.anxietywatch.mobile.ui.common.SectionHeader
 import com.anxietywatch.mobile.ui.common.StatusBadge
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PatientDetailScreen(
     patientId: String,
@@ -42,22 +45,30 @@ fun PatientDetailScreen(
     val resolved = viewModel ?: if (state == null) hiltViewModel() else null
     val collected by resolved?.uiState?.collectAsState()
         ?: androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(state!!) }
+    val isRefreshing by resolved?.isRefreshing?.collectAsState()
+        ?: androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     ScreenScaffold {
         Column(Modifier.fillMaxSize()) {
             CaregiverTopBar("Detalle del paciente", onBack = onBack)
-            when (val current = collected) {
-                CaregiverPatientDetailUiState.Loading -> LoadingState("Cargando paciente...", Modifier.weight(1f))
-                is CaregiverPatientDetailUiState.Error -> ErrorState(
-                    current.message,
-                    onRetry ?: resolved?.let { it::retry },
-                    Modifier.weight(1f),
-                )
-                is CaregiverPatientDetailUiState.Content -> PatientDetailContent(
-                    patient = current.data,
-                    onEventClick = onEventClick,
-                    onAlertClick = onAlertClick,
-                    modifier = Modifier.weight(1f),
-                )
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = { resolved?.refresh() },
+                modifier = Modifier.weight(1f),
+            ) {
+                when (val current = collected) {
+                    CaregiverPatientDetailUiState.Loading -> LoadingState("Cargando paciente...", Modifier.fillMaxSize())
+                    is CaregiverPatientDetailUiState.Error -> ErrorState(
+                        current.message,
+                        onRetry ?: resolved?.let { it::retry },
+                        Modifier.fillMaxSize(),
+                    )
+                    is CaregiverPatientDetailUiState.Content -> PatientDetailContent(
+                        patient = current.data,
+                        onEventClick = onEventClick,
+                        onAlertClick = onAlertClick,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
     }
