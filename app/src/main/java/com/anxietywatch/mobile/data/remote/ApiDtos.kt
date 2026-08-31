@@ -36,6 +36,9 @@ data class TelemetrySampleDto(
     val accelerometer: AccelerometerSampleDto? = null,
     val skinTemperatureCelsius: Double? = null,
     val ambientTemperatureCelsius: Double? = null,
+    // El backend valida samples[].quality como obligatorio; sin @EncodeDefault kotlinx
+    // omite el objeto cuando es igual a su default -> 400 "The Quality field is required."
+    @EncodeDefault
     val quality: SampleQualityDto = SampleQualityDto(),
 )
 

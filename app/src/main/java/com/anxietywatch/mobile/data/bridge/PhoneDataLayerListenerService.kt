@@ -64,6 +64,7 @@ class PhoneDataLayerListenerService : WearableListenerService() {
 
     override fun onMessageReceived(messageEvent: MessageEvent) {
         val path = messageEvent.path
+        if (BuildConfig.DEBUG) Log.i(TAG, "onMessageReceived path=$path node=${messageEvent.sourceNodeId} bytes=${messageEvent.data.size}")
         if (path == PAIRING_IDENTITY_ROUTE) {
             val payload = String(messageEvent.data, Charsets.UTF_8)
             scope.launch { handlePairingIdentity(payload, messageEvent.sourceNodeId) }
@@ -89,10 +90,12 @@ class PhoneDataLayerListenerService : WearableListenerService() {
     }
 
     override fun onDataChanged(dataEvents: DataEventBuffer) {
+        if (BuildConfig.DEBUG) Log.i(TAG, "onDataChanged eventos=${dataEvents.count()}")
         for (event in dataEvents) {
             if (event.type != DataEvent.TYPE_CHANGED) continue
             val item = event.dataItem
             val path = item.uri.path.orEmpty()
+            if (BuildConfig.DEBUG) Log.i(TAG, "onDataChanged item path=$path host=${item.uri.host}")
             val dataMap = DataMapItem.fromDataItem(item).dataMap
             val payload = dataMap.getByteArray(PAYLOAD_KEY)?.toString(Charsets.UTF_8) ?: continue
             val sourceNodeId = item.uri.host ?: continue
@@ -493,6 +496,7 @@ internal data class MutableTelemetrySample(
     var skinTemperatureCelsius: Double? = null,
     var heartRateQuality: String = "unknown",
     var ibiQuality: String = "unknown",
+    var wearingState: String = "unknown",
 ) {
     fun toDto(timestampMillis: Long) = TelemetrySampleDto(
         timestamp = Instant.ofEpochMilli(timestampMillis).toString(),
@@ -500,7 +504,7 @@ internal data class MutableTelemetrySample(
         ibiMs = httpIbiMs(ibiMs),
         accelerometer = accelerometer,
         skinTemperatureCelsius = skinTemperatureCelsius,
-        quality = SampleQualityDto(heartRateQuality, ibiQuality, "onBody"),
+        quality = SampleQualityDto(heartRateQuality, ibiQuality, wearingState),
     )
 }
 
@@ -516,9 +520,19 @@ internal fun applyTelemetryReading(
                 ?.mapNotNull { it.jsonPrimitive.contentOrNull?.toDoubleOrNull() }
             sample.heartRateQuality = qualityFrom(payload)
             sample.ibiQuality = sample.heartRateQuality
+            sample.wearingState = when (payload.string("wearingState")?.trim()?.lowercase(Locale.ROOT)) {
+                "onbody" -> "onBody"
+                "offbody" -> "offBody"
+                else -> "unknown"
+            }
         }
-        "accelerometer" -> payload.number("magnitudeG")?.let {
-            sample.accelerometer = AccelerometerSampleDto(x = it, y = 0.0, z = 0.0)
+        "accelerometer" -> {
+            val x = payload.number("x")
+            val y = payload.number("y")
+            val z = payload.number("z")
+            if (x != null && y != null && z != null) {
+                sample.accelerometer = AccelerometerSampleDto(x = x, y = y, z = z)
+            }
         }
         "skin_temperature" -> sample.skinTemperatureCelsius = payload.number("celsius")
     }

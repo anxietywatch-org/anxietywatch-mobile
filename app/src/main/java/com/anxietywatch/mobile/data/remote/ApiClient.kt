@@ -85,6 +85,9 @@ object ApiClient {
     private val json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
+        // Sin encodeDefaults global: los campos obligatorios con valor por defecto que
+        // el backend exige (p.ej. samples[].quality de telemetría) se fuerzan de forma
+        // puntual con @EncodeDefault en el DTO, no cambiando el serializador entero.
     }
 
     fun create(
