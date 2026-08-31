@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
@@ -58,6 +59,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -65,6 +69,8 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.anxietywatch.mobile.ui.common.ErrorState
+import com.anxietywatch.mobile.ui.common.LoadingState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,6 +82,7 @@ fun PatientProfileScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val remoteProfile by viewModel.profile.collectAsState()
+    val localDemographics by viewModel.localDemographics.collectAsState()
     var fullName by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf("") }
@@ -90,6 +97,7 @@ fun PatientProfileScreen(
     var diagnosis by remember { mutableStateOf<Boolean?>(null) }
     var professional by remember { mutableStateOf("") }
     var profileLoaded by remember { mutableStateOf(false) }
+    var localDemographicsLoaded by remember { mutableStateOf(false) }
     var photoUri by remember {
         mutableStateOf(
             context.getSharedPreferences(PHOTO_PREFERENCES, android.content.Context.MODE_PRIVATE)
@@ -209,6 +217,30 @@ fun PatientProfileScreen(
     LaunchedEffect(uiState) {
         if (uiState is PatientProfileUiState.Success) onCompleted()
     }
+    LaunchedEffect(localDemographics) {
+        val local = localDemographics ?: return@LaunchedEffect
+        if (!localDemographicsLoaded) {
+            age = local.age
+            gender = local.gender
+            height = local.heightCm
+            weight = local.weightKg
+            localDemographicsLoaded = true
+        }
+    }
+
+    when (val state = uiState) {
+        PatientProfileUiState.Idle,
+        PatientProfileUiState.Loading,
+        -> if (remoteProfile == null) {
+            LoadingState("Cargando tu perfil...")
+            return
+        }
+        is PatientProfileUiState.LoadError -> {
+            ErrorState(state.message, viewModel::loadProfile)
+            return
+        }
+        else -> Unit
+    }
 
     Column(
         modifier = Modifier
@@ -245,6 +277,12 @@ fun PatientProfileScreen(
             }
         }
         ProfileField("Nombre completo", fullName) { fullName = it }
+        Text(
+            "Edad, género, altura y peso se mantienen localmente en esta sesión; no se envían al backend actual.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
         ProfileField("Edad", age) { age = it.filter(Char::isDigit).take(3) }
         ExposedDropdownMenuBox(
             expanded = genderExpanded,
@@ -310,7 +348,11 @@ fun PatientProfileScreen(
                     "Política de Privacidad",
                     color = MaterialTheme.colorScheme.primary,
                     textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.padding(top = 4.dp).clickable(onClick = onPrivacyPolicyClick),
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                        .clickable(role = Role.Button, onClick = onPrivacyPolicyClick)
+                        .semantics { role = Role.Button },
                 )
             }
         }

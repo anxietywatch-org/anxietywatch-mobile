@@ -1,181 +1,169 @@
 package com.anxietywatch.mobile.ui.wellness
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.DirectionsRun
-import androidx.compose.material.icons.filled.Air
-import androidx.compose.material.icons.filled.PersonOff
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
-import androidx.compose.material3.Icon
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.anxietywatch.mobile.ui.common.AsyncUiState
+import com.anxietywatch.mobile.ui.caregiver.CaregiverTopBar
+import com.anxietywatch.mobile.ui.common.AlertRow
 import com.anxietywatch.mobile.ui.common.EmptyState
 import com.anxietywatch.mobile.ui.common.ErrorState
 import com.anxietywatch.mobile.ui.common.LoadingState
+import com.anxietywatch.mobile.ui.common.ScreenScaffold
+import com.anxietywatch.mobile.ui.common.SectionHeader
+import com.anxietywatch.mobile.ui.common.StatusBadge
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PatientDetailScreen(
     patientId: String,
-    onEventClick: (String) -> Unit,
-    viewModel: PatientDetailViewModel = hiltViewModel(),
+    onBack: () -> Unit = {},
+    onEventClick: (String) -> Unit = {},
+    onAlertClick: (String) -> Unit = {},
+    viewModel: CaregiverPatientDetailViewModel? = null,
+    state: CaregiverPatientDetailUiState? = null,
+    onRetry: (() -> Unit)? = null,
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
-    LaunchedEffect(patientId) { viewModel.loadPatient(patientId) }
-
-    PullToRefreshBox(
-        isRefreshing = isRefreshing,
-        onRefresh = { viewModel.loadPatient(patientId, isManualRefresh = true) },
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        when (val state = uiState) {
-            AsyncUiState.Loading -> LoadingState("Cargando información del paciente...")
-            AsyncUiState.Empty -> EmptyState(
-                icon = Icons.Default.PersonOff,
-                title = "Información no disponible",
-                message = "Todavía no hay datos de este paciente para mostrar.",
-            )
-            is AsyncUiState.Error -> ErrorState(
-                message = state.message,
-                onRetry = { viewModel.loadPatient(patientId) },
-            )
-            is AsyncUiState.Success -> PatientDetailContent(state.data, onEventClick)
-        }
-    }
-}
-
-@Composable
-private fun PatientDetailContent(patient: PatientDetailUiModel, onEventClick: (String) -> Unit) {
-    var selectedBar by remember(patient.heartRateSamples) {
-        mutableIntStateOf((patient.heartRateSamples.size - 1).coerceAtLeast(0))
-    }
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
-        Text(patient.name, style = MaterialTheme.typography.headlineLarge)
-        patient.status?.let {
-            Surface(
-                color = MaterialTheme.colorScheme.tertiaryContainer,
-                shape = RoundedCornerShape(50),
-                modifier = Modifier.padding(top = 8.dp),
-            ) { Text(it, modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)) }
-        }
-        if (patient.heartRateSamples.isNotEmpty()) {
-            Spacer(Modifier.height(24.dp))
-            Text("Frecuencia cardíaca", style = MaterialTheme.typography.titleLarge)
-            Card(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("BPM por franja horaria", style = MaterialTheme.typography.bodySmall)
-                    HeartRateBarChart(
-                        samples = patient.heartRateSamples,
-                        selectedIndex = selectedBar,
-                        onSelected = { selectedBar = it },
+    val resolved = viewModel ?: if (state == null) hiltViewModel() else null
+    val collected by resolved?.uiState?.collectAsState()
+        ?: androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(state!!) }
+    val isRefreshing by resolved?.isRefreshing?.collectAsState()
+        ?: androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    ScreenScaffold {
+        Column(Modifier.fillMaxSize()) {
+            CaregiverTopBar("Detalle del paciente", onBack = onBack)
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = { resolved?.refresh() },
+                modifier = Modifier.weight(1f),
+            ) {
+                when (val current = collected) {
+                    CaregiverPatientDetailUiState.Loading -> LoadingState("Cargando paciente...", Modifier.fillMaxSize())
+                    is CaregiverPatientDetailUiState.Error -> ErrorState(
+                        current.message,
+                        onRetry ?: resolved?.let { it::retry },
+                        Modifier.fillMaxSize(),
+                    )
+                    is CaregiverPatientDetailUiState.Content -> PatientDetailContent(
+                        patient = current.data,
+                        onEventClick = onEventClick,
+                        onAlertClick = onAlertClick,
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
             }
         }
-        Text("Eventos recientes", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
-        if (patient.events.isEmpty()) {
-            Text(
-                "No hay eventos registrados.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 16.dp),
+    }
+}
+
+@Composable
+private fun PatientDetailContent(
+    patient: CaregiverPatientDetailUiModel,
+    onEventClick: (String) -> Unit,
+    onAlertClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp)) {
+        SectionHeader(
+            title = patient.displayName,
+            eyebrow = "CUIDADOR",
+            description = "Información compartida por este paciente",
+        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        ) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Estado actual", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    patient.bpm?.let { "$it BPM" } ?: "Sin lectura reciente",
+                    style = MaterialTheme.typography.headlineSmall,
+                )
+                patient.lastUpdated?.let {
+                    Text(
+                        "Última medición: $it",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        Text(
+            "Eventos recientes",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
+        )
+        if (patient.recentEvents.isEmpty()) {
+            EmptyState("No hay eventos disponibles.", "Cuando exista actividad compartida, aparecerá aquí.")
+        } else {
+            patient.recentEvents.forEach { event ->
+                Card(
+                    onClick = { onEventClick(event.id) },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(event.title, style = MaterialTheme.typography.titleMedium)
+                            event.description?.let {
+                                StatusBadge(it, modifier = Modifier.padding(top = 6.dp))
+                            }
+                        }
+                        event.occurredAt?.let {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Text(
+            "Alertas recientes",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
+        )
+        if (patient.recentAlerts.isEmpty()) {
+            EmptyState(
+                "No hay alertas recientes.",
+                "Las alertas compartidas aparecerán aquí cuando estén disponibles.",
             )
         } else {
-            patient.events.forEach { event ->
-                EventRow(event = event, onClick = { onEventClick(event.id) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun HeartRateBarChart(
-    samples: List<HeartRateSampleUiModel>,
-    selectedIndex: Int,
-    onSelected: (Int) -> Unit,
-) {
-    val selectedColor = MaterialTheme.colorScheme.primary
-    val unselectedColor = MaterialTheme.colorScheme.primaryContainer
-    val maxValue = samples.maxOfOrNull { it.beatsPerMinute }?.coerceAtLeast(1) ?: 1
-    Row(modifier = Modifier.fillMaxWidth().height(220.dp).padding(top = 12.dp), verticalAlignment = Alignment.Bottom) {
-        samples.forEachIndexed { index, sample ->
-            Column(
-                modifier = Modifier.weight(1f).fillMaxSize().clickable { onSelected(index) },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Bottom,
-            ) {
-                if (selectedIndex == index) {
-                    Text("${sample.beatsPerMinute} BPM", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                }
-                Canvas(
-                    modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp, vertical = 8.dp),
-                    onDraw = {
-                        val barHeight = size.height * (sample.beatsPerMinute / maxValue.toFloat())
-                        drawRoundRect(
-                            color = if (selectedIndex == index) selectedColor else unselectedColor,
-                            topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - barHeight),
-                            size = androidx.compose.ui.geometry.Size(size.width, barHeight),
-                            cornerRadius = CornerRadius(10f, 10f),
-                        )
-                    },
+            patient.recentAlerts.forEach { alert ->
+                AlertRow(
+                    title = alert.title,
+                    patientName = alert.description ?: patient.displayName,
+                    occurredAt = alert.occurredAt ?: "Fecha no disponible",
+                    status = alert.status ?: "Sin estado",
+                    onClick = { onAlertClick(alert.id) },
+                    modifier = Modifier.padding(top = 6.dp),
                 )
-                Text(sample.label, style = MaterialTheme.typography.labelSmall)
             }
         }
-    }
-}
-
-@Composable
-private fun EventRow(event: WellnessEventUiModel, onClick: () -> Unit) {
-    val (icon, tint) = when (event.type) {
-        WellnessEventType.Crisis -> Icons.Default.Warning to MaterialTheme.colorScheme.error
-        WellnessEventType.Breathing -> Icons.Default.Air to MaterialTheme.colorScheme.tertiary
-        WellnessEventType.ElevatedRhythm -> Icons.AutoMirrored.Filled.DirectionsRun to MaterialTheme.colorScheme.secondary
-        WellnessEventType.Unknown -> Icons.Default.Event to MaterialTheme.colorScheme.primary
-    }
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = tint.copy(alpha = 0.15f), shape = CircleShape, modifier = Modifier.size(40.dp)) {
-                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.padding(9.dp))
-            }
-            Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(event.title, style = MaterialTheme.typography.titleMedium)
-                event.description?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            event.time?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
-        }
+        Spacer(Modifier.padding(bottom = 8.dp))
     }
 }

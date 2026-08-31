@@ -2,6 +2,7 @@ package com.anxietywatch.mobile.data.bridge
 
 import android.net.Uri
 import android.util.Log
+import com.anxietywatch.mobile.BuildConfig
 import com.anxietywatch.mobile.data.local.AppDatabase
 import com.anxietywatch.mobile.data.local.PendingEventDecisionEntity
 import com.anxietywatch.mobile.data.local.PendingSosCancelEventEntity
@@ -20,6 +21,10 @@ import com.anxietywatch.mobile.data.remote.SuspectedEventFeaturesRequest
 import com.anxietywatch.mobile.data.remote.SuspectedEventRequest
 import com.anxietywatch.mobile.data.remote.TelemetrySampleDto
 import com.anxietywatch.mobile.data.remote.TriggerSosRequest
+import com.anxietywatch.mobile.data.remote.httpIbiMs
+import com.anxietywatch.mobile.observability.DebugTrace
+import com.anxietywatch.mobile.data.remote.isWearableSubmissionDelivered
+import com.anxietywatch.mobile.data.remote.responseIdMatches
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
@@ -43,6 +48,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.time.Instant
 import java.time.format.DateTimeParseException
+import java.util.Locale
 import javax.inject.Inject
 
 /** Fog bridge for the current `/fog/v1` Wear Data Layer protocol. */
@@ -52,12 +58,18 @@ class PhoneDataLayerListenerService : WearableListenerService() {
     @Inject lateinit var api: AnxietyWatchApi
     @Inject lateinit var sessionContext: MonitoringSessionContext
     @Inject lateinit var database: AppDatabase
+    @Inject lateinit var deliveryCoordinator: DeliveryCoordinator
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val json = Json { ignoreUnknownKeys = true }
 
     override fun onMessageReceived(messageEvent: MessageEvent) {
         val path = messageEvent.path
+        if (path == PAIRING_IDENTITY_ROUTE) {
+            val payload = String(messageEvent.data, Charsets.UTF_8)
+            scope.launch { handlePairingIdentity(payload, messageEvent.sourceNodeId) }
+            return
+        }
         val eventId = when {
             path.startsWith(SOS_CANCEL_ROUTE_PREFIX) -> path.removePrefix(SOS_CANCEL_ROUTE_PREFIX)
             path.startsWith(SOS_ROUTE_PREFIX) -> path.removePrefix(SOS_ROUTE_PREFIX)
@@ -100,55 +112,108 @@ class PhoneDataLayerListenerService : WearableListenerService() {
 
     private suspend fun handleSos(rawJson: String, routeEventId: String, sourceNodeId: String) {
         val obj = parseEnvelope(rawJson, SOS_SCHEMA) ?: return
-        val eventId = obj.string("eventId") ?: routeEventId
+        val payloadEventId = obj.string("eventId") ?: return
+        if (!responseIdMatches(routeEventId, payloadEventId)) {
+            logRouteIdMismatch("SOS")
+            return
+        }
+        val eventId = payloadEventId
+        val deviceId = sessionContext.pairedDeviceId()
+            ?: return missingPairedDeviceId("SOS")
         val request = TriggerSosRequest(
             eventId = eventId,
-            deviceId = sessionContext.pairedDeviceId(),
+            deviceId = deviceId,
             userId = null,
             triggeredAt = obj.string("triggeredAt") ?: return,
             source = obj.string("source") ?: "WATCH",
             reason = obj.string("reason") ?: "SOS desde el reloj",
         )
         database.pendingUploadDao().insertSosEvent(
-            PendingSosEventEntity(eventId, json.encodeToString(request), System.currentTimeMillis()),
+            PendingSosEventEntity(
+                eventId = eventId,
+                requestJson = json.encodeToString(request),
+                createdAtMillis = System.currentTimeMillis(),
+                wearableDeviceId = deviceId,
+                sourceNodeId = sourceNodeId,
+            ),
         )
-        runCatching { api.triggerSos(request) }
-            .onSuccess {
-                database.pendingUploadDao().updateSosEventStatus(eventId, SyncStatus.SYNCED)
-                sendEventAck(sourceNodeId, "$ACK_SOS_PREFIX$eventId")
-            }
-            .onFailure { Log.w(TAG, "No se pudo sincronizar el evento SOS") }
+        val pending = database.pendingUploadDao().getSosEvent(eventId) ?: return
+        if (pending.wearableDeviceId.isBlank()) database.pendingUploadDao().setSosOwnership(eventId, deviceId)
+        deliveryCoordinator.deliver(
+            status = pending.syncStatus,
+            attemptCount = pending.attemptCount,
+            lastError = pending.lastError,
+            wearableDeviceId = pending.wearableDeviceId.ifBlank { deviceId },
+            expectedId = eventId,
+            ackPath = "$ACK_SOS_PREFIX$eventId",
+            http = {
+                val response = api.triggerSos(request)
+                BackendDeliveryResponse(response.eventId, response.accepted, response.duplicate)
+            },
+            persist = { status, reason -> database.pendingUploadDao().updateSosEventStatus(eventId, status, reason) },
+            incrementAttempt = { reason -> database.pendingUploadDao().incrementSosAttempt(eventId, reason) },
+        )
     }
 
     private suspend fun handleSosCancel(rawJson: String, routeEventId: String, sourceNodeId: String) {
         val obj = parseEnvelope(rawJson, SOS_SCHEMA) ?: return
-        val eventId = obj.string("eventId") ?: routeEventId
+        val payloadEventId = obj.string("eventId") ?: return
+        if (!responseIdMatches(routeEventId, payloadEventId)) {
+            logRouteIdMismatch("SOS_CANCEL")
+            return
+        }
+        val eventId = payloadEventId
+        val deviceId = sessionContext.pairedDeviceId()
+            ?: return missingPairedDeviceId("SOS_CANCEL")
         val request = SosCancelRequest(
             eventId = eventId,
-            deviceId = sessionContext.pairedDeviceId(),
+            deviceId = deviceId,
             userId = null,
             cancelledAt = obj.string("cancelledAt") ?: return,
             reason = obj.string("reason"),
         )
         database.pendingUploadDao().insertSosCancelEvent(
-            PendingSosCancelEventEntity(eventId, json.encodeToString(request), System.currentTimeMillis()),
+            PendingSosCancelEventEntity(
+                eventId = eventId,
+                requestJson = json.encodeToString(request),
+                createdAtMillis = System.currentTimeMillis(),
+                wearableDeviceId = deviceId,
+                sourceNodeId = sourceNodeId,
+            ),
         )
-        runCatching { api.cancelSos(request) }
-            .onSuccess {
-                database.pendingUploadDao().updateSosCancelEventStatus(eventId, SyncStatus.SYNCED)
-                sendEventAck(sourceNodeId, "$ACK_SOS_CANCEL_PREFIX$eventId")
-            }
-            .onFailure { Log.w(TAG, "No se pudo sincronizar la cancelación SOS") }
+        val pending = database.pendingUploadDao().getSosCancelEvent(eventId) ?: return
+        if (pending.wearableDeviceId.isBlank()) database.pendingUploadDao().setSosCancelOwnership(eventId, deviceId)
+        deliveryCoordinator.deliver(
+            status = pending.syncStatus,
+            attemptCount = pending.attemptCount,
+            lastError = pending.lastError,
+            wearableDeviceId = pending.wearableDeviceId.ifBlank { deviceId },
+            expectedId = eventId,
+            ackPath = "$ACK_SOS_CANCEL_PREFIX$eventId",
+            http = {
+                val response = api.cancelSos(request)
+                BackendDeliveryResponse(response.eventId, response.accepted, response.duplicate)
+            },
+            persist = { status, reason -> database.pendingUploadDao().updateSosCancelEventStatus(eventId, status, reason) },
+            incrementAttempt = { reason -> database.pendingUploadDao().incrementSosCancelAttempt(eventId, reason) },
+        )
     }
 
     private suspend fun handleSuspected(rawJson: String, routeEventId: String, sourceNodeId: String) {
         val obj = parseEnvelope(rawJson, SUSPECTED_SCHEMA) ?: return
-        val eventId = obj.string("eventId") ?: routeEventId
+        val payloadEventId = obj.string("eventId") ?: return
+        if (!responseIdMatches(routeEventId, payloadEventId)) {
+            logRouteIdMismatch("SUSPECTED")
+            return
+        }
+        val eventId = payloadEventId
+        val deviceId = sessionContext.pairedDeviceId()
+            ?: return missingPairedDeviceId("SUSPECTED")
         val features = obj["features"]?.let { runCatching { it.jsonObject }.getOrNull() } ?: return
         val baseline = obj["baseline"]?.let { runCatching { it.jsonObject }.getOrNull() } ?: return
         val request = SuspectedEventRequest(
             eventId = eventId,
-            deviceId = sessionContext.pairedDeviceId(),
+            deviceId = deviceId,
             userId = null,
             sessionId = sessionContext.currentSessionId(),
             sequence = sessionContext.nextSequence(),
@@ -177,22 +242,45 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             ),
         )
         database.pendingUploadDao().insertSuspectedEvent(
-            PendingSuspectedEventEntity(eventId, json.encodeToString(request), System.currentTimeMillis()),
+            PendingSuspectedEventEntity(
+                eventId = eventId,
+                requestJson = json.encodeToString(request),
+                createdAtMillis = System.currentTimeMillis(),
+                wearableDeviceId = deviceId,
+                sourceNodeId = sourceNodeId,
+            ),
         )
-        runCatching { api.submitSuspectedEvent(request) }
-            .onSuccess {
-                database.pendingUploadDao().updateSuspectedEventStatus(eventId, SyncStatus.SYNCED)
-                sendEventAck(sourceNodeId, "$ACK_SUSPECTED_PREFIX$eventId")
-            }
-            .onFailure { Log.w(TAG, "No se pudo sincronizar el evento detectado") }
+        val pending = database.pendingUploadDao().getSuspectedEvent(eventId) ?: return
+        if (pending.wearableDeviceId.isBlank()) database.pendingUploadDao().setSuspectedOwnership(eventId, deviceId)
+        deliveryCoordinator.deliver(
+            status = pending.syncStatus,
+            attemptCount = pending.attemptCount,
+            lastError = pending.lastError,
+            wearableDeviceId = pending.wearableDeviceId.ifBlank { deviceId },
+            expectedId = eventId,
+            ackPath = "$ACK_SUSPECTED_PREFIX$eventId",
+            http = {
+                val response = api.submitSuspectedEvent(request)
+                BackendDeliveryResponse(response.eventId, response.accepted, response.duplicate)
+            },
+            persist = { status, reason -> database.pendingUploadDao().updateSuspectedEventStatus(eventId, status, reason) },
+            incrementAttempt = { reason -> database.pendingUploadDao().incrementSuspectedAttempt(eventId, reason) },
+        )
     }
 
     private suspend fun handleDecision(rawJson: String, routeEventId: String, sourceNodeId: String) {
         val obj = parseEnvelope(rawJson, DECISION_SCHEMA) ?: return
-        val eventId = obj.string("eventId") ?: routeEventId
+        val payloadEventId = obj.string("eventId") ?: return
+        if (!responseIdMatches(routeEventId, payloadEventId)) {
+            logRouteIdMismatch("DECISION")
+            return
+        }
+        val eventId = payloadEventId
+        val deviceId = sessionContext.pairedDeviceId()
+            ?: return missingPairedDeviceId("DECISION")
         val request = EventDecisionRequest(
             eventId = eventId,
-            deviceId = sessionContext.pairedDeviceId(),
+            deviceId = deviceId,
             userId = null,
             sessionId = sessionContext.currentSessionId(),
             sequence = sessionContext.nextSequence(),
@@ -201,19 +289,42 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             response = obj.string("response") ?: return,
         )
         database.pendingUploadDao().insertEventDecision(
-            PendingEventDecisionEntity(eventId, json.encodeToString(request), System.currentTimeMillis()),
+            PendingEventDecisionEntity(
+                eventId = eventId,
+                requestJson = json.encodeToString(request),
+                createdAtMillis = System.currentTimeMillis(),
+                wearableDeviceId = deviceId,
+                sourceNodeId = sourceNodeId,
+            ),
         )
-        runCatching { api.submitEventDecision(request) }
-            .onSuccess {
-                database.pendingUploadDao().updateEventDecisionStatus(eventId, SyncStatus.SYNCED)
-                sendEventAck(sourceNodeId, "$ACK_DECISION_PREFIX$eventId")
-            }
-            .onFailure { Log.w(TAG, "No se pudo sincronizar la decisión del evento") }
+        val pending = database.pendingUploadDao().getEventDecision(eventId) ?: return
+        if (pending.wearableDeviceId.isBlank()) database.pendingUploadDao().setDecisionOwnership(eventId, deviceId)
+        deliveryCoordinator.deliver(
+            status = pending.syncStatus,
+            attemptCount = pending.attemptCount,
+            lastError = pending.lastError,
+            wearableDeviceId = pending.wearableDeviceId.ifBlank { deviceId },
+            expectedId = eventId,
+            ackPath = "$ACK_DECISION_PREFIX$eventId",
+            http = {
+                val response = api.submitEventDecision(request)
+                BackendDeliveryResponse(response.eventId, response.accepted, response.duplicate)
+            },
+            persist = { status, reason -> database.pendingUploadDao().updateEventDecisionStatus(eventId, status, reason) },
+            incrementAttempt = { reason -> database.pendingUploadDao().incrementEventDecisionAttempt(eventId, reason) },
+        )
     }
 
     private suspend fun handleTelemetryBatch(rawJson: String, routeBatchId: String, sourceNodeId: String) {
         val obj = parseEnvelope(rawJson, TELEMETRY_SCHEMA) ?: return
-        val batchId = obj.string("batchId") ?: routeBatchId
+        val payloadBatchId = obj.string("batchId") ?: return
+        if (!responseIdMatches(routeBatchId, payloadBatchId)) {
+            logRouteIdMismatch("TELEMETRY")
+            return
+        }
+        val batchId = payloadBatchId
+        val deviceId = sessionContext.pairedDeviceId()
+            ?: return missingPairedDeviceId("TELEMETRY")
         val records = obj["records"]?.jsonArray ?: JsonArray(emptyList())
         val samplesByTimestamp = linkedMapOf<Long, MutableTelemetrySample>()
 
@@ -235,11 +346,12 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             Log.w(TAG, "Se descartó un lote de telemetría vacío sin enviar ACK")
             return
         }
+        DebugTrace.telemetry("RECEIVED", batchId)
 
         val timestamps = samplesByTimestamp.keys.sorted()
         val request = CreateTelemetryBatchRequest(
             batchId = batchId,
-            deviceId = sessionContext.pairedDeviceId(),
+            deviceId = deviceId,
             userId = null,
             sessionId = sessionContext.currentSessionId(),
             startedAt = Instant.ofEpochMilli(timestamps.first()).toString(),
@@ -247,15 +359,52 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             sequence = sessionContext.nextSequence(),
             samples = timestamps.map { samplesByTimestamp.getValue(it).toDto(it) },
         )
+        val existingBatch = database.pendingUploadDao().getTelemetryBatch(batchId)
         database.pendingUploadDao().insertTelemetryBatch(
-            PendingTelemetryBatchEntity(batchId, json.encodeToString(request), System.currentTimeMillis()),
+            PendingTelemetryBatchEntity(
+                batchId = batchId,
+                requestJson = json.encodeToString(request),
+                createdAtMillis = System.currentTimeMillis(),
+                wearableDeviceId = deviceId,
+                sourceNodeId = sourceNodeId,
+            ),
         )
-        runCatching { api.sendTelemetryBatch(request) }
-            .onSuccess {
-                database.pendingUploadDao().updateTelemetryBatchStatus(batchId, SyncStatus.SYNCED)
-                sendTelemetryAck(sourceNodeId, batchId)
-            }
-            .onFailure { Log.w(TAG, "No se pudo sincronizar la telemetría") }
+        if (existingBatch == null) {
+            DebugTrace.telemetry("ROOM_PERSISTED", batchId)
+        } else {
+            DebugTrace.telemetry("ROOM_ALREADY_PRESENT", batchId)
+        }
+        val pending = database.pendingUploadDao().getTelemetryBatch(batchId) ?: return
+        if (pending.wearableDeviceId.isBlank()) database.pendingUploadDao().setTelemetryOwnership(batchId, deviceId)
+        deliveryCoordinator.deliver(
+            status = pending.syncStatus,
+            attemptCount = pending.attemptCount,
+            lastError = pending.lastError,
+            wearableDeviceId = pending.wearableDeviceId.ifBlank { deviceId },
+            expectedId = batchId,
+            ackPath = "$ACK_TELEMETRY_PREFIX$batchId",
+            http = {
+                val attempt = pending.attemptCount + 1
+                DebugTrace.telemetry("HTTP_ATTEMPT", batchId, "attempt=$attempt")
+                runCatching { api.sendTelemetryBatch(request) }
+                    .onSuccess { response ->
+                        DebugTrace.telemetry("HTTP_RESULT", batchId, "status=${if (response.accepted) 202 else 200}")
+                    }
+                    .onFailure {
+                        DebugTrace.telemetry("HTTP_RESULT", batchId, "status=EXCEPTION")
+                    }
+                    .getOrThrow()
+                    .let { response -> BackendDeliveryResponse(response.batchId, response.accepted, response.duplicate) }
+            },
+            persist = { status, reason ->
+                database.pendingUploadDao().updateTelemetryBatchStatus(batchId, status, reason)
+                if (status == SyncStatus.DELIVERED) deleteTelemetryDataItem(batchId)
+            },
+            incrementAttempt = { reason -> database.pendingUploadDao().incrementTelemetryAttempt(batchId, reason) },
+            terminalNackPath = "$TERMINAL_NACK_TELEMETRY_PREFIX$batchId",
+            terminalNackPayload = terminalTelemetryNackPayload(batchId),
+            traceTelemetryBatchId = batchId,
+        )
     }
 
     private fun handleCapabilities(rawJson: String, sourceNodeId: String) {
@@ -264,6 +413,37 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             Log.i(TAG, "Reloj compatible detectado")
         } else {
             Log.w(TAG, "Capabilities de reloj no compatibles")
+        }
+    }
+
+    private suspend fun handlePairingIdentity(rawJson: String, sourceNodeId: String) {
+        val obj = runCatching { json.parseToJsonElement(rawJson).jsonObject }.getOrNull() ?: return
+        if (obj.string("schemaVersion") != PAIRING_SCHEMA_VERSION.toString()) return
+        val nonce = obj.string("pairingNonce")?.takeIf(PairingPolicy::isValidUuid) ?: return
+        val wearableDeviceId = obj.string("wearableDeviceId")?.takeIf(PairingPolicy::isValidUuid) ?: return
+        if (!sessionContext.completePairing(sourceNodeId, nonce, wearableDeviceId)) {
+            Log.w(TAG, "Rejected unsolicited or mismatched wearable pairing identity")
+            return
+        }
+        sendPairingConfirm(sourceNodeId, nonce)
+    }
+
+    private fun sendPairingConfirm(wearNodeId: String, nonce: String) {
+        val payload = pairingConfirmPayload(nonce)
+        Wearable.getMessageClient(this)
+            .sendMessage(wearNodeId, PAIRING_CONFIRM_ROUTE, payload)
+            .addOnFailureListener { Log.w(TAG, "No se pudo confirmar la vinculacion con el reloj") }
+    }
+
+    private fun logRouteIdMismatch(kind: String) {
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "Rejected $kind envelope: route/payload ID mismatch")
+        }
+    }
+
+    private fun missingPairedDeviceId(kind: String) {
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "$kind blocked: MISSING_PAIRED_DEVICE_ID")
         }
     }
 
@@ -276,59 +456,15 @@ class PhoneDataLayerListenerService : WearableListenerService() {
         return obj
     }
 
-    private fun sendTelemetryAck(nodeId: String, batchId: String) {
-        sendEventAck(nodeId, "$ACK_TELEMETRY_PREFIX$batchId")
+    private fun deleteTelemetryDataItem(batchId: String) {
         Wearable.getDataClient(this).deleteDataItems(
             Uri.parse("wear://*$TELEMETRY_ROUTE_PREFIX/$batchId"),
             DataClient.FILTER_LITERAL,
         ).addOnFailureListener { Log.w(TAG, "No se pudo borrar el DataItem") }
     }
 
-    private fun sendEventAck(nodeId: String, path: String) {
-        Wearable.getMessageClient(this).sendMessage(nodeId, path, ByteArray(0))
-            .addOnFailureListener { Log.w(TAG, "No se pudo enviar el ACK") }
-    }
-
     private fun applyReading(sample: MutableTelemetrySample, type: String, payload: JsonObject) {
-        when (type) {
-            "HEART_RATE" -> {
-                sample.heartRateBpm = payload.number("bpm")
-                sample.ibiMs = (payload["ibiMillis"] as? JsonArray)
-                    ?.mapNotNull { it.jsonPrimitive.contentOrNull?.toDoubleOrNull() }
-                sample.heartRateQuality = qualityFrom(payload)
-                sample.ibiQuality = sample.heartRateQuality
-            }
-            "ACCELEROMETER" -> payload.number("magnitudeG")?.let {
-                sample.accelerometer = AccelerometerSampleDto(x = it, y = 0.0, z = 0.0)
-            }
-            "SKIN_TEMPERATURE" -> sample.skinTemperatureCelsius = payload.number("celsius")
-        }
-    }
-
-    private fun qualityFrom(payload: JsonObject): String = when (val quality = payload.number("signalQuality")) {
-        null -> "unknown"
-        in 0.8..Double.MAX_VALUE -> "good"
-        in 0.5..0.799999999 -> "fair"
-        in 0.000000001..0.499999999 -> "poor"
-        else -> "unknown"
-    }
-
-    private data class MutableTelemetrySample(
-        var heartRateBpm: Double? = null,
-        var ibiMs: List<Double>? = null,
-        var accelerometer: AccelerometerSampleDto? = null,
-        var skinTemperatureCelsius: Double? = null,
-        var heartRateQuality: String = "unknown",
-        var ibiQuality: String = "unknown",
-    ) {
-        fun toDto(timestampMillis: Long) = TelemetrySampleDto(
-            timestamp = Instant.ofEpochMilli(timestampMillis).toString(),
-            heartRateBpm = heartRateBpm,
-            ibiMs = ibiMs,
-            accelerometer = accelerometer,
-            skinTemperatureCelsius = skinTemperatureCelsius,
-            quality = SampleQualityDto(heartRateQuality, ibiQuality, "onBody"),
-        )
+        applyTelemetryReading(sample, type, payload)
     }
 
     private companion object {
@@ -350,7 +486,68 @@ class PhoneDataLayerListenerService : WearableListenerService() {
         const val ACK_SOS_CANCEL_PREFIX = "/fog/v1/ack/sos-cancel/"
         const val ACK_SUSPECTED_PREFIX = "/fog/v1/ack/events/suspected/"
         const val ACK_DECISION_PREFIX = "/fog/v1/ack/events/decision/"
+        const val PAIRING_IDENTITY_ROUTE = "/fog/v1/pairing/identity"
+        const val PAIRING_CONFIRM_ROUTE = "/fog/v1/pairing/confirm"
+        const val PAIRING_SCHEMA_VERSION = 1
+
     }
+}
+
+internal fun pairingConfirmPayload(nonce: String): ByteArray = JsonObject(
+    mapOf(
+        "schemaVersion" to kotlinx.serialization.json.JsonPrimitive(1),
+        "pairingNonce" to kotlinx.serialization.json.JsonPrimitive(nonce),
+    ),
+).toString().toByteArray(Charsets.UTF_8)
+
+internal fun pairingUnpairPayload(): ByteArray = JsonObject(
+    mapOf("schemaVersion" to kotlinx.serialization.json.JsonPrimitive(1)),
+).toString().toByteArray(Charsets.UTF_8)
+
+internal data class MutableTelemetrySample(
+    var heartRateBpm: Double? = null,
+    var ibiMs: List<Double>? = null,
+    var accelerometer: AccelerometerSampleDto? = null,
+    var skinTemperatureCelsius: Double? = null,
+    var heartRateQuality: String = "unknown",
+    var ibiQuality: String = "unknown",
+) {
+    fun toDto(timestampMillis: Long) = TelemetrySampleDto(
+        timestamp = Instant.ofEpochMilli(timestampMillis).toString(),
+        heartRateBpm = heartRateBpm,
+        ibiMs = httpIbiMs(ibiMs),
+        accelerometer = accelerometer,
+        skinTemperatureCelsius = skinTemperatureCelsius,
+        quality = SampleQualityDto(heartRateQuality, ibiQuality, "onBody"),
+    )
+}
+
+internal fun applyTelemetryReading(
+    sample: MutableTelemetrySample,
+    type: String,
+    payload: JsonObject,
+) {
+    when (type.trim().lowercase(Locale.ROOT)) {
+        "heart_rate" -> {
+            sample.heartRateBpm = payload.number("bpm")
+            sample.ibiMs = (payload["ibiMillis"] as? JsonArray)
+                ?.mapNotNull { it.jsonPrimitive.contentOrNull?.toDoubleOrNull() }
+            sample.heartRateQuality = qualityFrom(payload)
+            sample.ibiQuality = sample.heartRateQuality
+        }
+        "accelerometer" -> payload.number("magnitudeG")?.let {
+            sample.accelerometer = AccelerometerSampleDto(x = it, y = 0.0, z = 0.0)
+        }
+        "skin_temperature" -> sample.skinTemperatureCelsius = payload.number("celsius")
+    }
+}
+
+private fun qualityFrom(payload: JsonObject): String = when (val quality = payload.number("signalQuality")) {
+    null -> "unknown"
+    in 0.8..Double.MAX_VALUE -> "good"
+    in 0.5..0.799999999 -> "fair"
+    in 0.000000001..0.499999999 -> "poor"
+    else -> "unknown"
 }
 
 private fun JsonObject.string(key: String): String? =

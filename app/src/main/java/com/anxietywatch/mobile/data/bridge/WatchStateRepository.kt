@@ -19,6 +19,8 @@ import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private const val HR_BATCH_PAGE_SIZE = 50
+
 data class LatestWatchSample(
     val heartRateBpm: Int?,
     val capturedAt: String?,
@@ -45,11 +47,11 @@ class WatchStateRepository @Inject constructor(
 
     init {
         scope.launch {
-            dao.observeMostRecentTelemetryBatch().collect { batch ->
+            dao.observeMostRecentTelemetryBatch().collect { latestBatch ->
                 _state.emit(
                     _state.value.copy(
-                        latestSample = batch?.let(::parseLatestSample),
-                        lastTelemetryAtMillis = batch?.createdAtMillis,
+                        latestSample = findLatestPersistedHeartRateSample(),
+                        lastTelemetryAtMillis = latestBatch?.createdAtMillis,
                     ),
                 )
             }
@@ -71,34 +73,61 @@ class WatchStateRepository @Inject constructor(
     fun refresh() {
         refreshConnection()
         scope.launch {
-            val batch = dao.observeMostRecentTelemetryBatch().first()
+            val latestBatch = dao.observeMostRecentTelemetryBatch().first()
             _state.update {
                 it.copy(
-                    latestSample = batch?.let(::parseLatestSample),
-                    lastTelemetryAtMillis = batch?.createdAtMillis,
+                    latestSample = findLatestPersistedHeartRateSample(),
+                    lastTelemetryAtMillis = latestBatch?.createdAtMillis,
                 )
             }
         }
     }
 
-    private fun parseLatestSample(batch: com.anxietywatch.mobile.data.local.PendingTelemetryBatchEntity): LatestWatchSample? {
+    private suspend fun findLatestPersistedHeartRateSample(): LatestWatchSample? {
+        var offset = 0
+        var latest: LatestWatchSample? = null
+
+        while (true) {
+            val page = dao.getTelemetryBatchPage(HR_BATCH_PAGE_SIZE, offset)
+            if (page.isEmpty()) return latest
+
+            val pageLatest = selectLatestHeartRateSample(page, json)
+            if (pageLatest != null && (latest == null || isLater(pageLatest, latest))) {
+                latest = pageLatest
+            }
+            offset += page.size
+        }
+    }
+
+}
+
+internal fun selectLatestHeartRateSample(
+    batches: List<com.anxietywatch.mobile.data.local.PendingTelemetryBatchEntity>,
+    json: Json,
+): LatestWatchSample? = batches
+    .mapNotNull { batch ->
         val request = runCatching {
             json.decodeFromString<CreateTelemetryBatchRequest>(batch.requestJson)
-        }.getOrNull() ?: return null
+        }.getOrNull() ?: return@mapNotNull null
 
-        val sample = request.samples
+        request.samples
+            .asSequence()
             .mapNotNull { telemetry ->
-                runCatching { Instant.parse(telemetry.timestamp) to telemetry }.getOrNull()
+                val timestamp = runCatching { Instant.parse(telemetry.timestamp) }.getOrNull()
+                if (timestamp != null && telemetry.heartRateBpm != null) {
+                    timestamp to LatestWatchSample(
+                        heartRateBpm = telemetry.heartRateBpm.toInt(),
+                        capturedAt = telemetry.timestamp,
+                        batchCreatedAtMillis = batch.createdAtMillis,
+                    )
+                } else {
+                    null
+                }
             }
-            .filter { it.second.heartRateBpm != null }
             .maxByOrNull { it.first }
             ?.second
-            ?: return null
-
-        return LatestWatchSample(
-            heartRateBpm = sample.heartRateBpm?.toInt(),
-            capturedAt = sample.timestamp,
-            batchCreatedAtMillis = batch.createdAtMillis,
-        )
     }
-}
+    .maxByOrNull { Instant.parse(requireNotNull(it.capturedAt)) }
+
+private fun isLater(candidate: LatestWatchSample, current: LatestWatchSample): Boolean =
+    Instant.parse(requireNotNull(candidate.capturedAt)) > Instant.parse(requireNotNull(current.capturedAt))

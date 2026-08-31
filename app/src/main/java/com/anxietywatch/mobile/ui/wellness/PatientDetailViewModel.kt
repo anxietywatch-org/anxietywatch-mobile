@@ -121,7 +121,7 @@ class PatientDetailViewModel @Inject constructor(
     private fun mapEpisode(episode: CaregiverEpisodeDto) = WellnessEventUiModel(
         id = episode.id,
         title = "Episodio registrado",
-        description = episode.notes ?: episode.symptoms.takeIf { it.isNotEmpty() }?.joinToString(),
+        description = episode.notes ?: episode.symptoms.orEmpty().takeIf { it.isNotEmpty() }?.joinToString(),
         time = formatTimestamp(episode.date),
         type = WellnessEventType.Unknown,
     )

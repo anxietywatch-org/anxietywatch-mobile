@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -29,6 +30,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,40 +41,70 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.anxietywatch.mobile.data.remote.EpisodeDto
+import com.anxietywatch.mobile.ui.events.EventDetailScreen
+import com.anxietywatch.mobile.ui.common.EmptyState
+import com.anxietywatch.mobile.ui.common.ErrorState
+import com.anxietywatch.mobile.ui.common.LoadingState
+import com.anxietywatch.mobile.ui.common.SectionHeader
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PatientHistoryScreen(viewModel: PatientHistoryViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
+    var selectedEpisodeId by remember { mutableStateOf<String?>(null) }
+    val selectedEpisode = (uiState as? PatientHistoryUiState.Success)?.episodes
+        ?.let { episodes -> findEpisodeById(episodes, selectedEpisodeId) }
+
+    if (selectedEpisode != null) {
+        EventDetailScreen(
+            eventId = selectedEpisode.id,
+            episode = selectedEpisode,
+            onBack = { selectedEpisodeId = null },
+        )
+        return
+    }
+
     when (val state = uiState) {
         PatientHistoryUiState.Idle,
         PatientHistoryUiState.Loading,
-        -> Text("Cargando tu historial...", modifier = Modifier.padding(24.dp))
-        is PatientHistoryUiState.Error -> Text(
-            state.message,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.padding(24.dp),
-        )
-        is PatientHistoryUiState.Success -> HistoryContent(state.episodes)
+        -> LoadingState("Cargando tu historial...")
+        is PatientHistoryUiState.Error -> ErrorState(state.message, viewModel::loadHistory)
+        is PatientHistoryUiState.Success -> PullToRefreshBox(
+            isRefreshing = state.refreshing,
+            onRefresh = viewModel::refresh,
+            modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+        ) {
+            Column(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
+                state.refreshError?.let { ErrorState(it, onRetry = viewModel::refresh) }
+                HistoryContent(state.episodes) { episodeId -> selectedEpisodeId = episodeId }
+            }
+        }
     }
 }
 
+internal fun findEpisodeById(episodes: List<EpisodeDto>, episodeId: String?): EpisodeDto? =
+    episodeId?.let { id -> episodes.firstOrNull { it.id == id } }
+
 @Composable
-private fun HistoryContent(episodes: List<EpisodeDto>) {
+private fun HistoryContent(episodes: List<EpisodeDto>, onEpisodeClick: (String) -> Unit) {
     var selectedIndex by remember(episodes) { mutableIntStateOf((episodes.size - 1).coerceAtLeast(0)) }
     val chartEpisodes = episodes.takeLast(4)
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
-        Text("Historial del paciente", style = MaterialTheme.typography.headlineLarge)
-        Text(
-            "Últimos 7 días",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp),
+        SectionHeader(
+            eyebrow = "PACIENTE",
+            title = "Historial del paciente",
+            description = "Últimos 7 días",
         )
         if (episodes.isEmpty()) {
-            EmptyHistoryMessage()
+            EmptyState(
+                title = "Aún no hay episodios registrados",
+                description = "Cuando haya actividad registrada, aparecerá aquí.",
+            )
         } else {
             Text("Nivel de ansiedad", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp))
             Card(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
@@ -86,27 +118,11 @@ private fun HistoryContent(episodes: List<EpisodeDto>) {
                 }
             }
             Text("Eventos recientes", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
-            episodes.asReversed().forEach { episode -> HistoryEventRow(episode) }
+            episodes.asReversed().forEach { episode ->
+                HistoryEventRow(episode, onClick = { onEpisodeClick(episode.id) })
+            }
         }
         Spacer(Modifier.height(32.dp))
-    }
-}
-
-@Composable
-private fun EmptyHistoryMessage() {
-    Card(modifier = Modifier.fillMaxWidth().padding(top = 32.dp)) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(42.dp), tint = MaterialTheme.colorScheme.primary)
-            Text("Aún no hay episodios registrados", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
-            Text(
-                "Cuando haya actividad registrada, aparecerá aquí.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-        }
     }
 }
 
@@ -144,9 +160,9 @@ private fun PatientHistoryBarChart(
 }
 
 @Composable
-private fun HistoryEventRow(episode: EpisodeDto) {
+private fun HistoryEventRow(episode: EpisodeDto, onClick: () -> Unit) {
     val isHigh = episode.intensity > 70
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(
                 color = (if (isHigh) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary).copy(alpha = 0.15f),

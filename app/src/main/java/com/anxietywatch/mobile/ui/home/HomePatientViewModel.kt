@@ -1,5 +1,6 @@
 package com.anxietywatch.mobile.ui.home
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.anxietywatch.mobile.data.bridge.WatchStateRepository
@@ -16,7 +17,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 sealed interface HomePatientNetworkUiState {
     data object Idle : HomePatientNetworkUiState
     data object Loading : HomePatientNetworkUiState
-    data class Success(val data: HomePatientData) : HomePatientNetworkUiState
+    data class Success(
+        val data: HomePatientData,
+        val refreshing: Boolean = false,
+        val refreshError: String? = null,
+    ) : HomePatientNetworkUiState
     data class Error(val message: String) : HomePatientNetworkUiState
 }
 
@@ -42,7 +47,7 @@ class HomePatientViewModel @Inject constructor(
                             data = current.data.copy(
                                 state = current.data.state.copy(
                                     bpm = watchState.latestSample?.heartRateBpm,
-                                    watchSampleTimestamp = watchState.latestSample?.capturedAt,
+                                    connectivity = patientConnectivityFrom(watchState, System.currentTimeMillis()),
                                 ),
                             ),
                         )
@@ -55,38 +60,70 @@ class HomePatientViewModel @Inject constructor(
     }
 
     fun loadHome() {
-        _uiState.update { HomePatientNetworkUiState.Loading }
+        loadHomeInternal(isRefresh = false)
+    }
+
+    fun refresh() {
+        if (_uiState.value is HomePatientNetworkUiState.Success) {
+            _uiState.update { state ->
+                (state as HomePatientNetworkUiState.Success).copy(refreshing = true, refreshError = null)
+            }
+            loadHomeInternal(isRefresh = true)
+        } else {
+            loadHome()
+        }
+    }
+
+    private fun loadHomeInternal(isRefresh: Boolean) {
+        if (!isRefresh) {
+            Log.d(TAG, "PatientHome state=LOADING refreshing=false")
+            _uiState.update { HomePatientNetworkUiState.Loading }
+        } else {
+            val hasBpm = (_uiState.value as? HomePatientNetworkUiState.Success)?.data?.state?.bpm != null
+            Log.d(TAG, "PatientHome state=CONTENT refreshing=true hasBpm=$hasBpm")
+        }
         viewModelScope.launch {
             runCatching {
                 val summary = api.getDashboardSummary()
                 val episodes = api.getEpisodes(range = 7)
                 HomePatientData(
-                    state = HomePatientUiState(
-                        bpm = watchStateRepository.state.value.latestSample?.heartRateBpm,
-                        statusLabel = "Estado: ${summary.anxietyLevel.trend.toStatusLabel()}",
-                        statusMessage = "Nivel de ansiedad actual: ${summary.anxietyLevel.current}.",
+                    state = homePatientUiStateFrom(
+                        summary = summary,
                         episodes = episodes,
-                        streakDays = summary.streakDays,
-                        weeklyRecordsUsed = summary.weeklyRecords.used,
-                        weeklyRecordsLimit = summary.weeklyRecords.limit,
+                        watchState = watchStateRepository.state.value,
+                        nowMillis = System.currentTimeMillis(),
                     ),
                 )
             }.onSuccess { data ->
+                Log.d(
+                    TAG,
+                    "PatientHome state=CONTENT refreshing=false hasBpm=${data.state.bpm != null}",
+                )
                 _uiState.update { HomePatientNetworkUiState.Success(data) }
             }.onFailure { error ->
+                if (isRefresh && _uiState.value is HomePatientNetworkUiState.Success) {
+                    val hasBpm = (_uiState.value as HomePatientNetworkUiState.Success).data.state.bpm != null
+                    Log.d(TAG, "PatientHome state=CONTENT refreshing=false hasBpm=$hasBpm refreshError=true")
+                    _uiState.update { state ->
+                        (state as HomePatientNetworkUiState.Success).copy(
+                            refreshing = false,
+                            refreshError = "No pudimos actualizar tu resumen. Revisa tu conexión e inténtalo de nuevo.",
+                        )
+                    }
+                    return@onFailure
+                }
                 val message = if (error is HttpException && error.code() == 401) {
                     "Tu sesión expiró. Ingresa nuevamente tu código."
                 } else {
                     "No pudimos cargar tu resumen. Revisa tu conexión e inténtalo de nuevo."
                 }
+                Log.d(TAG, "PatientHome state=ERROR refreshing=$isRefresh")
                 _uiState.update { HomePatientNetworkUiState.Error(message) }
             }
         }
     }
-}
 
-private fun String.toStatusLabel(): String = when (lowercase()) {
-    "up" -> "En aumento"
-    "down" -> "En descenso"
-    else -> "Estable"
+    private companion object {
+        const val TAG = "AnxietyWatchUi"
+    }
 }

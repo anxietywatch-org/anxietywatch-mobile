@@ -1,6 +1,8 @@
 package com.anxietywatch.mobile.data.remote
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.EncodeDefault
+import java.util.UUID
 
 // Contrato CONFIRMADO en producción (https://api.mangoon.xyz) por el equipo de backend,
 // 11/ago/2026. Es distinto del que yo había diseñado originalmente en el .NET — este es
@@ -18,8 +20,11 @@ data class AccelerometerSampleDto(
 
 @Serializable
 data class SampleQualityDto(
+    @EncodeDefault
     val heartRate: String = "unknown", // good | fair | poor | unknown
+    @EncodeDefault
     val ibi: String = "unknown",
+    @EncodeDefault
     val wearingState: String = "unknown", // onBody | offBody | unknown
 )
 
@@ -27,7 +32,7 @@ data class SampleQualityDto(
 data class TelemetrySampleDto(
     val timestamp: String, // ISO-8601 UTC, ej. "2026-08-11T23:50:00Z"
     val heartRateBpm: Double? = null,
-    val ibiMs: List<Double>? = null,
+    val ibiMs: List<Double>,
     val accelerometer: AccelerometerSampleDto? = null,
     val skinTemperatureCelsius: Double? = null,
     val ambientTemperatureCelsius: Double? = null,
@@ -46,12 +51,11 @@ data class CreateTelemetryBatchRequest(
     val samples: List<TelemetrySampleDto>,
 )
 
-// El backend responde 202 (lote nuevo) o 200 (duplicado, idempotente) — Retrofit trata
-// ambos como éxito por igual, así que no hace falta distinguirlos en el DTO.
 @Serializable
 data class TelemetryBatchAckResponse(
-    val batchId: String? = null,
-    val status: String? = null,
+    val batchId: String,
+    val accepted: Boolean,
+    val duplicate: Boolean,
 )
 
 // --- SOS ---
@@ -68,8 +72,9 @@ data class TriggerSosRequest(
 
 @Serializable
 data class SosTriggerResponse(
-    val eventId: String? = null,
-    val status: String? = null,
+    val eventId: String,
+    val accepted: Boolean,
+    val duplicate: Boolean,
 )
 
 // --- Auth (register/login/session — ya viven en producción) ---
@@ -82,6 +87,7 @@ data class UserResponseDto(
     val planId: String,
     val emailVerified: Boolean,
     val avatarUrl: String? = null,
+    val role: String? = null,
 )
 
 @Serializable
@@ -133,11 +139,7 @@ data class CreateTokenRequest(
     val role: String,
 )
 
-/**
- * Endpoint AUN NO DESPLEGADO -- lo construyo yo en el backend .NET. Por codigo en vez
- * de por id interno del token, y SIN requerir sesion previa (activa la cuenta con el
- * mismo request). Ver conversacion: "Opcion A".
- */
+/** Anonymous invitation redemption request. */
 @Serializable
 data class AcceptByCodeRequest(
     val code: String,
@@ -155,8 +157,9 @@ data class SosCancelRequest(
 
 @Serializable
 data class SosCancelResponse(
-    val eventId: String? = null,
-    val status: String? = null,
+    val eventId: String,
+    val accepted: Boolean,
+    val duplicate: Boolean,
 )
 
 @Serializable
@@ -211,9 +214,26 @@ data class EventDecisionRequest(
 
 @Serializable
 data class WearableEventResponse(
-    val eventId: String? = null,
-    val status: String? = null,
+    val eventId: String,
+    val accepted: Boolean,
+    val duplicate: Boolean,
 )
+
+internal fun isWearableSubmissionDelivered(
+    expectedId: String,
+    responseId: String,
+    accepted: Boolean,
+    duplicate: Boolean,
+): Boolean = responseIdMatches(expectedId, responseId) && (accepted || duplicate)
+
+internal fun responseIdMatches(routeId: String, payloadId: String): Boolean = routeId == payloadId
+
+internal fun httpIbiMs(sensorIbiMs: List<Double>?): List<Double> = sensorIbiMs ?: emptyList()
+
+internal fun isValidWearableDeviceId(deviceId: String?): Boolean {
+    val uuid = deviceId?.let { runCatching { UUID.fromString(it) }.getOrNull() } ?: return false
+    return uuid != UUID(0L, 0L)
+}
 
 // --- Perfil, dashboard y episodios (contrato confirmado en backend) ---
 
@@ -270,50 +290,38 @@ data class EpisodeDto(
     val notes: String? = null,
 )
 
-// --- Cuidador ---
+// --- Caregiver read models (backend develop @ 8218d3c) ---
 
 @Serializable
-data class CaregiverPatientDto(
+data class CaregiverPatientResponseDto(
     val patientId: String,
     val fullName: String,
     val avatarUrl: String? = null,
     val role: String? = null,
     val linkedAt: String? = null,
+    val status: String? = null,
 )
 
+typealias CaregiverPatientDto = CaregiverPatientResponseDto
+
 @Serializable
-data class CaregiverPatientDetailDto(
+data class CaregiverPatientDetailResponseDto(
     val patientId: String,
     val fullName: String,
+    val avatarUrl: String? = null,
     val status: String? = null,
 )
 
-@Serializable
-data class CaregiverEpisodeDto(
-    val id: String,
-    val date: String,
-    val intensity: Int? = null,
-    val symptoms: List<String> = emptyList(),
-    val notes: String? = null,
-    val detailsHidden: Boolean? = null,
-)
+typealias CaregiverPatientDetailDto = CaregiverPatientDetailResponseDto
 
 @Serializable
-data class CaregiverTelemetryLatestDto(
-    val measuredAt: String,
-    val heartRateBpm: Double? = null,
-    val ageSeconds: Int? = null,
-    val quality: String? = null,
-)
-
-@Serializable
-data class CaregiverEventDto(
+data class CaregiverEventResponseDto(
     val eventId: String,
+    val type: String? = null,
+    val occurredAt: String? = null,
+    val status: String? = null,
     val title: String? = null,
     val description: String? = null,
-    val occurredAt: String? = null,
-    val type: String? = null,
-    val status: String? = null,
     val category: String? = null,
     val summary: String? = null,
     val metrics: List<CaregiverEventMetricDto> = emptyList(),
@@ -321,6 +329,28 @@ data class CaregiverEventDto(
     val systemNotes: String? = null,
     val tags: List<String> = emptyList(),
 )
+
+@Serializable
+data class CaregiverLatestHeartRateResponseDto(
+    val heartRateBpm: Double? = null,
+    val measuredAt: String,
+    val ageSeconds: Long? = null,
+    val quality: String? = null,
+)
+typealias CaregiverEventDto = CaregiverEventResponseDto
+typealias CaregiverTelemetryLatestDto = CaregiverLatestHeartRateResponseDto
+
+@Serializable
+data class CaregiverEpisodeDto(
+    val date: String,
+    val intensity: Int = 0,
+    val symptoms: List<String>? = null,
+    val notes: String? = null,
+    val detailsHidden: Boolean = false,
+) {
+    // The backend episode response has no separate identifier.
+    val id: String get() = date
+}
 
 @Serializable
 data class CaregiverEventMetricDto(

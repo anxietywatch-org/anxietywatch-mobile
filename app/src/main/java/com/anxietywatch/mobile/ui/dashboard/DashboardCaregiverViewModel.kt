@@ -2,22 +2,17 @@ package com.anxietywatch.mobile.ui.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.anxietywatch.mobile.data.caregiver.CaregiverRepository
 import com.anxietywatch.mobile.data.remote.AnxietyWatchApi
 import com.anxietywatch.mobile.data.remote.LinkCaregiverPatientRequest
-import com.anxietywatch.mobile.ui.common.AsyncUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import javax.inject.Inject
-
-data class DashboardCaregiverData(
-    val caregiverName: String? = null,
-    val patients: List<CaregiverPatientUiModel>,
-)
 
 sealed interface LinkPatientUiState {
     data object Idle : LinkPatientUiState
@@ -28,10 +23,11 @@ sealed interface LinkPatientUiState {
 
 @HiltViewModel
 class DashboardCaregiverViewModel @Inject constructor(
+    private val repository: CaregiverRepository,
     private val api: AnxietyWatchApi,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow<AsyncUiState<DashboardCaregiverData>>(AsyncUiState.Loading)
-    val uiState: StateFlow<AsyncUiState<DashboardCaregiverData>> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow<DashboardCaregiverUiState>(DashboardCaregiverUiState.Loading)
+    val uiState: StateFlow<DashboardCaregiverUiState> = _uiState.asStateFlow()
 
     private val _linkPatientUiState = MutableStateFlow<LinkPatientUiState>(LinkPatientUiState.Idle)
     val linkPatientUiState: StateFlow<LinkPatientUiState> = _linkPatientUiState.asStateFlow()
@@ -41,36 +37,40 @@ class DashboardCaregiverViewModel @Inject constructor(
 
     init { loadDashboard() }
 
+    fun retry() = loadDashboard()
+
     fun loadDashboard(isManualRefresh: Boolean = false) {
-        if (isManualRefresh) {
-            _isRefreshing.value = true
-        } else {
-            _uiState.value = AsyncUiState.Loading
-        }
+        val previous = _uiState.value
+        if (!isManualRefresh) _uiState.value = DashboardCaregiverUiState.Loading
+        _isRefreshing.value = isManualRefresh
         viewModelScope.launch {
             try {
-                val patients = api.getCaregiverPatients().map { patient ->
-                    CaregiverPatientUiModel(
-                        id = patient.patientId,
-                        name = patient.fullName,
-                    )
-                }
-                _uiState.value = if (patients.isEmpty()) {
-                    AsyncUiState.Empty
+                val data = repository.loadDashboard().toUiModel()
+                _uiState.value = if (data.patients.isEmpty()) {
+                    DashboardCaregiverUiState.Empty()
                 } else {
-                    AsyncUiState.Success(DashboardCaregiverData(patients = patients))
+                    DashboardCaregiverUiState.Content(data)
                 }
             } catch (error: CancellationException) {
                 throw error
-            } catch (_: Exception) {
-                _uiState.value = AsyncUiState.Error(
-                    "No pudimos cargar tus pacientes. Revisa tu conexión e intenta de nuevo.",
-                )
+            } catch (error: Exception) {
+                val message = error.message ?: "No se pudo cargar el dashboard del cuidador."
+                _uiState.value = if (isManualRefresh) {
+                    when (previous) {
+                        is DashboardCaregiverUiState.Content -> previous.copy(refreshError = message)
+                        is DashboardCaregiverUiState.Empty -> previous.copy(refreshError = message)
+                        else -> DashboardCaregiverUiState.Error(message)
+                    }
+                } else {
+                    DashboardCaregiverUiState.Error(message)
+                }
             } finally {
-                if (isManualRefresh) _isRefreshing.value = false
+                _isRefreshing.value = false
             }
         }
     }
+
+    fun refresh() = loadDashboard(isManualRefresh = true)
 
     fun linkPatient(rawCode: String) {
         val sanitized = sanitizeCode(rawCode)

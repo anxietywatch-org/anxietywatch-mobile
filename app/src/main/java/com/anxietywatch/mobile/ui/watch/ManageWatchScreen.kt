@@ -36,28 +36,45 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.anxietywatch.mobile.ui.common.ConnectivityCard
+import com.anxietywatch.mobile.ui.common.ConnectivityStatus
+import com.anxietywatch.mobile.ui.common.SectionHeader
 
 @Composable
-fun ManageWatchScreen(viewModel: ManageWatchViewModel = hiltViewModel()) {
+fun ManageWatchScreen(
+    onPairWatch: () -> Unit = {},
+    viewModel: ManageWatchViewModel = hiltViewModel(),
+) {
     val state by viewModel.uiState.collectAsState()
     var showDisconnectDialog by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
-        Text("Gestionar reloj", style = MaterialTheme.typography.headlineLarge)
-        Card(modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(16.dp)) {
-                Icon(Icons.Default.Watch, contentDescription = null, modifier = Modifier.size(52.dp))
-                Column(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
-                    Text(
-                        state.deviceName ?: "Reloj no vinculado",
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                    Text(
-                        if (state.connected) "Conectado" else "Desconectado",
-                        color = if (state.connected) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,
-                    )
-                }
-                // TODO: el protocolo actual del reloj no envía batería.
+        SectionHeader(eyebrow = "DISPOSITIVO", title = "Gestionar reloj")
+        ConnectivityCard(
+            status = if (state.connected) ConnectivityStatus.ConnectedRecent else ConnectivityStatus.Disconnected,
+            deviceName = state.deviceName,
+            lastSync = state.lastSync,
+        )
+        if (state.pairingStored) {
+            Text(
+                "Reloj vinculado",
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+        } else {
+            Button(
+                onClick = onPairWatch,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            ) {
+                Text("Vincular reloj")
+            }
+        }
+        if (!state.pairingStored) {
+            Button(
+                onClick = onPairWatch,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            ) {
+                Text("Vincular reloj")
             }
         }
         SectionTitle("Sincronización")
@@ -97,7 +114,7 @@ fun ManageWatchScreen(viewModel: ManageWatchViewModel = hiltViewModel()) {
             TextButton(onClick = {}, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Lectura de Pulso")
-                    Text("Cada 5 s")
+                    Text("Monitoreo continuo")
                 }
             }
         }

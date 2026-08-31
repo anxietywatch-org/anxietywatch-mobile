@@ -44,8 +44,7 @@ class CaregiverPushService : FirebaseMessagingService() {
             runCatching {
                 PushTokenRegistrar.register(api, token)
             }.onSuccess {
-                // TODO: quitar este log de diagnóstico temporal.
-                Log.d("PushDebug", "Dispositivo registrado correctamente para push.")
+                Log.d(TAG, "Dispositivo registrado correctamente para push.")
             }.onFailure { error ->
                 Log.e(TAG, "No se pudo registrar el dispositivo para notificaciones.", error)
             }
@@ -53,12 +52,6 @@ class CaregiverPushService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
-        // TODO: quitar este log de diagnóstico temporal.
-        Log.d(
-            "PushDebug",
-            "Push recibido. data=${message.data} " +
-                "notification=${message.notification?.title}/${message.notification?.body}",
-        )
         createNotificationChannel()
 
         val eventId = message.data[EVENT_ID_KEY]?.trim()?.takeIf { it.isNotEmpty() }

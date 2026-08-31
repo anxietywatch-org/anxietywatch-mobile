@@ -2,7 +2,6 @@ package com.anxietywatch.mobile.ui.dashboard
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,14 +11,16 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.People
-import androidx.compose.material3.Card
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,73 +28,84 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import com.anxietywatch.mobile.ui.common.AsyncUiState
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.anxietywatch.mobile.ui.caregiver.CaregiverBottomBar
+import com.anxietywatch.mobile.ui.caregiver.CaregiverDestination
+import com.anxietywatch.mobile.ui.caregiver.CaregiverTopBar
+import com.anxietywatch.mobile.ui.caregiver.PatientCard
+import com.anxietywatch.mobile.ui.caregiver.CaregiverSummaryCard
 import com.anxietywatch.mobile.ui.common.EmptyState
 import com.anxietywatch.mobile.ui.common.ErrorState
 import com.anxietywatch.mobile.ui.common.LoadingState
 
-data class CaregiverPatientUiModel(
-    val id: String,
-    val name: String,
-    val status: String? = null,
-    val heartRate: Int? = null,
-    val lastSync: String? = null,
-)
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardCaregiverScreen(
-    viewModel: DashboardCaregiverViewModel = hiltViewModel(),
+    viewModel: DashboardCaregiverViewModel? = null,
     onPatientClick: (String) -> Unit = {},
+    onViewAllPatientsClick: () -> Unit = {},
+    onViewAlertsClick: () -> Unit = {},
+    onViewProfileClick: () -> Unit = {},
+    state: DashboardCaregiverUiState? = null,
+    onNavigate: (CaregiverDestination) -> Unit = {},
+    onLogout: () -> Unit = {},
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val linkPatientUiState by viewModel.linkPatientUiState.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
-    var code by remember { mutableStateOf("") }
+    val resolvedViewModel = viewModel ?: if (state == null) hiltViewModel() else null
+    val collectedState by resolvedViewModel?.uiState?.collectAsState()
+        ?: remember { mutableStateOf(state!!) }
+    val linkState by resolvedViewModel?.linkPatientUiState?.collectAsState()
+        ?: remember { mutableStateOf<LinkPatientUiState>(LinkPatientUiState.Idle) }
+    val isRefreshing by resolvedViewModel?.isRefreshing?.collectAsState()
+        ?: remember { mutableStateOf(false) }
+    var code by rememberSaveable { mutableStateOf("") }
 
-    LaunchedEffect(linkPatientUiState) {
-        if (linkPatientUiState is LinkPatientUiState.Success) code = ""
+    LaunchedEffect(linkState) {
+        if (linkState is LinkPatientUiState.Success) code = ""
     }
 
     Column(modifier = Modifier.fillMaxSize().imePadding()) {
+        CaregiverTopBar(
+            title = "AnxietyWatch",
+            subtitle = "Panel de cuidador",
+            onProfileClick = onViewProfileClick,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            TextButton(onClick = onLogout) { Text("Cerrar sesión") }
+        }
         PullToRefreshBox(
             isRefreshing = isRefreshing,
-            onRefresh = { viewModel.loadDashboard(isManualRefresh = true) },
+            onRefresh = { resolvedViewModel?.loadDashboard(isManualRefresh = true) },
             modifier = Modifier.weight(1f),
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                when (val state = uiState) {
-                    AsyncUiState.Loading -> LoadingState("Cargando pacientes...")
-                    AsyncUiState.Empty -> EmptyState(
-                        icon = Icons.Default.People,
-                        title = "No hay pacientes vinculados todavía",
-                        message = "Cuando se vincule un paciente, aparecerá aquí.",
-                    )
-                    is AsyncUiState.Error -> ErrorState(
-                        message = state.message,
-                        onRetry = { viewModel.loadDashboard() },
-                    )
-                    is AsyncUiState.Success -> DashboardContent(state.data, onPatientClick)
-                }
-            }
+            DashboardStateContent(
+                state = collectedState,
+                modifier = Modifier.fillMaxSize(),
+                onRetry = resolvedViewModel?.let { it::retry } ?: {},
+                onRefresh = resolvedViewModel?.let { it::refresh } ?: {},
+                onPatientClick = onPatientClick,
+                onViewAllPatientsClick = onViewAllPatientsClick,
+                onViewAlertsClick = onViewAlertsClick,
+            )
         }
         LinkPatientSection(
             code = code,
-            uiState = linkPatientUiState,
+            uiState = linkState,
             onCodeChange = { input ->
                 code = input.uppercase().filter { it.isLetterOrDigit() || it == '-' }.take(20)
-                if (linkPatientUiState is LinkPatientUiState.Error) viewModel.dismissLinkPatientError()
+                if (linkState is LinkPatientUiState.Error) resolvedViewModel?.dismissLinkPatientError()
             },
-            onLink = { viewModel.linkPatient(code) },
+            onLink = { resolvedViewModel?.linkPatient(code) },
         )
+        CaregiverBottomBar(CaregiverDestination.Home, onNavigate)
     }
 }
 
@@ -123,21 +135,22 @@ private fun LinkPatientSection(
                 enabled = !isLoading,
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
             )
-            if (uiState is LinkPatientUiState.Error) {
-                Text(
+            when (uiState) {
+                is LinkPatientUiState.Error -> Text(
                     text = uiState.message,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(top = 8.dp),
                 )
-            }
-            if (uiState is LinkPatientUiState.Success) {
-                Text(
+                LinkPatientUiState.Success -> Text(
                     text = "Paciente vinculado correctamente.",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 8.dp),
                 )
+                LinkPatientUiState.Idle,
+                LinkPatientUiState.Loading,
+                -> Unit
             }
             Button(
                 onClick = onLink,
@@ -158,53 +171,63 @@ private fun LinkPatientSection(
 }
 
 @Composable
-private fun DashboardContent(data: DashboardCaregiverData, onPatientClick: (String) -> Unit) {
-    if (data.patients.isEmpty()) {
-        EmptyState(
-            icon = Icons.Default.People,
-            title = "No hay pacientes vinculados todavía",
-            message = "Cuando se vincule un paciente, aparecerá aquí.",
-        )
-        return
-    }
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-    ) {
-        Text(
-            data.caregiverName?.let { "Bienvenida de nuevo, $it" } ?: "Panel de cuidador",
-            style = MaterialTheme.typography.headlineLarge,
-        )
-        Text(
-            "Resumen de tus pacientes",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(20.dp))
-        data.patients.forEach { patient ->
-            Card(
-                onClick = { onPatientClick(patient.id) },
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+private fun DashboardStateContent(
+    state: DashboardCaregiverUiState,
+    modifier: Modifier,
+    onRetry: () -> Unit,
+    onRefresh: () -> Unit,
+    onPatientClick: (String) -> Unit,
+    onViewAllPatientsClick: () -> Unit,
+    onViewAlertsClick: () -> Unit,
+) {
+    when (state) {
+        DashboardCaregiverUiState.Loading -> LoadingState("Cargando pacientes...", modifier)
+        is DashboardCaregiverUiState.Error -> ErrorState(state.message, onRetry, modifier)
+        is DashboardCaregiverUiState.Empty -> {
+            Column(modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                EmptyState(
+                    title = "No hay pacientes vinculados.",
+                    description = "Cuando exista una vinculación disponible, aparecerá aquí.",
+                    modifier = Modifier.padding(20.dp),
+                )
+                state.refreshError?.let { ErrorState(it, onRefresh) }
+            }
+        }
+        is DashboardCaregiverUiState.Content -> {
+            Column(
+                modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp),
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(patient.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                        patient.status?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
-                    }
-                    patient.heartRate?.let {
-                        Spacer(Modifier.height(12.dp))
-                        Text("$it BPM", style = MaterialTheme.typography.headlineSmall)
-                    }
-                    patient.lastSync?.let {
-                        Text(
-                            "Última sincronización: $it",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                Text("Resumen", style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    "Personas vinculadas a tu cuenta",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(16.dp))
+                CaregiverSummaryCard(state.data.patients.size)
+                Text("Pacientes", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 24.dp))
+                Text(
+                    "Lecturas disponibles en cada detalle de paciente",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+                )
+                state.data.patients.take(3).forEach { patient ->
+                    PatientCard(
+                        displayName = patient.displayName,
+                        bpm = patient.bpm,
+                        lastUpdated = patient.lastUpdated,
+                        onClick = { onPatientClick(patient.id) },
+                        modifier = Modifier.padding(bottom = 12.dp),
+                    )
                 }
+                TextButton(onClick = onViewAllPatientsClick, modifier = Modifier.fillMaxWidth()) {
+                    Text("Ver todos los pacientes")
+                }
+                TextButton(onClick = onViewAlertsClick, modifier = Modifier.fillMaxWidth()) {
+                    Text("Ver alertas")
+                }
+                state.refreshError?.let { ErrorState(it, onRefresh) }
             }
         }
     }

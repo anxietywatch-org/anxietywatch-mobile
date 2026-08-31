@@ -22,7 +22,7 @@ interface AnxietyWatchApi {
     suspend fun login(@Body request: LoginRequest): AuthenticationResponseDto
 
     @GET("api/auth/session")
-    suspend fun session(): UserResponseDto
+    suspend fun session(): AuthenticationResponseDto
 
     // --- Mobile / wearable (las 2 que construimos, ya en produccion) ---
     @POST("api/v1/telemetry/batch")
@@ -47,11 +47,7 @@ interface AnxietyWatchApi {
     @POST("api/tokens")
     suspend fun createToken(@Body request: CreateTokenRequest): TokenResponseDto
 
-    /**
-     * AUN NO DESPLEGADO en el backend -- lo agrego en el mismo commit que el resto de
-     * "Opcion A". Es la unica pieza que falta para que el flujo de "Ingreso por Token"
-     * (E02) funcione sin pantalla de login tradicional.
-     */
+    /** Public invitation redemption endpoint in backend develop. */
     @POST("api/tokens/accept-by-code")
     suspend fun acceptByCode(@Body request: AcceptByCodeRequest): TokenRedeemResponseDto
 
@@ -68,12 +64,26 @@ interface AnxietyWatchApi {
     @GET("api/episodes")
     suspend fun getEpisodes(@Query("range") range: Int = 7): List<EpisodeDto>
 
-    // --- Cuidador ---
+    // --- Caregiver read API ---
     @GET("api/caregiver/patients")
-    suspend fun getCaregiverPatients(): List<CaregiverPatientDto>
+    suspend fun getCaregiverPatients(): List<CaregiverPatientResponseDto>
+
+    @GET("api/caregiver/patients/{patientId}")
+    suspend fun getCaregiverPatientDetail(@Path("patientId") patientId: String): CaregiverPatientDetailResponseDto
 
     @GET("api/caregiver/patients/{patientId}")
     suspend fun getCaregiverPatient(@Path("patientId") patientId: String): CaregiverPatientDetailDto
+
+    @GET("api/caregiver/patients/{patientId}/events")
+    suspend fun getCaregiverPatientEvents(
+        @Path("patientId") patientId: String,
+        @Query("limit") limit: Int = 50,
+    ): List<CaregiverEventDto>
+
+    @GET("api/caregiver/patients/{patientId}/telemetry/latest")
+    suspend fun getCaregiverLatestHeartRate(
+        @Path("patientId") patientId: String,
+    ): CaregiverLatestHeartRateResponseDto?
 
     @GET("api/caregiver/patients/{patientId}/episodes")
     suspend fun getCaregiverPatientEpisodes(@Path("patientId") patientId: String): List<CaregiverEpisodeDto>
@@ -82,9 +92,6 @@ interface AnxietyWatchApi {
     suspend fun getCaregiverPatientLatestTelemetry(
         @Path("patientId") patientId: String,
     ): CaregiverTelemetryLatestDto
-
-    @GET("api/caregiver/patients/{patientId}/events")
-    suspend fun getCaregiverPatientEvents(@Path("patientId") patientId: String): List<CaregiverEventDto>
 
     @POST("api/caregiver/patients/link")
     suspend fun linkCaregiverPatient(@Body request: LinkCaregiverPatientRequest)

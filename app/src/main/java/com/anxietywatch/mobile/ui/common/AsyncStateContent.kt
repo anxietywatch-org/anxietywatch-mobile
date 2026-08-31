@@ -30,7 +30,7 @@ sealed interface AsyncUiState<out T> {
 }
 
 @Composable
-fun LoadingState(message: String, modifier: Modifier = Modifier) {
+fun LoadingState(message: String = "Cargando...", modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -59,9 +59,24 @@ fun EmptyState(
 }
 
 @Composable
+fun EmptyState(
+    title: String,
+    description: String? = null,
+    modifier: Modifier = Modifier,
+) {
+    StateCard(
+        icon = Icons.Default.Warning,
+        iconTint = MaterialTheme.colorScheme.primary,
+        title = title,
+        message = description.orEmpty(),
+        modifier = modifier,
+    )
+}
+
+@Composable
 fun ErrorState(
     message: String,
-    onRetry: () -> Unit,
+    onRetry: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     StateCard(
@@ -70,8 +85,8 @@ fun ErrorState(
         title = "No pudimos cargar la información",
         message = message,
         modifier = modifier,
-        action = {
-            Button(onClick = onRetry) { Text("Reintentar") }
+        action = onRetry?.let { retry ->
+            { Button(onClick = retry) { Text("Reintentar") } }
         },
     )
 }
