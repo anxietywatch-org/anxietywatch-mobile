@@ -108,7 +108,7 @@ fun ManageWatchScreen(
             TextButton(onClick = {}, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Lectura de Pulso")
-                    Text("Cada 5 s")
+                    Text("Monitoreo continuo")
                 }
             }
         }
