@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.time.Instant
-import java.time.format.DateTimeParseException
+import java.time.OffsetDateTime
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -49,14 +49,21 @@ class SessionRepository @Inject constructor(
     /** true si no hay sesión, si expiresAt no se puede interpretar o si ya venció. */
     fun isExpired(): Boolean {
         val expiresAtRaw = secureTokenStore.getExpiresAt() ?: return true
-        val expiresAt = try {
-            Instant.parse(expiresAtRaw)
-        } catch (exception: DateTimeParseException) {
-            Log.w(TAG, "No se pudo interpretar expiresAt persistido: $expiresAtRaw", exception)
+        val expiresAt = parseExpiresAt(expiresAtRaw) ?: run {
+            Log.w(TAG, "No se pudo interpretar expiresAt persistido: $expiresAtRaw")
             return true
         }
         return Instant.now().isAfter(expiresAt)
     }
+
+    /**
+     * El backend serializa expiresAt con offset ("2026-09-07T06:17:49.855877+00:00"),
+     * no con "Z". Instant.parse() exige "Z" estricto y falla con esa forma; probamos
+     * primero Instant y caemos a OffsetDateTime, que acepta ambas.
+     */
+    private fun parseExpiresAt(raw: String): Instant? =
+        runCatching { Instant.parse(raw) }.getOrNull()
+            ?: runCatching { OffsetDateTime.parse(raw).toInstant() }.getOrNull()
 
     fun hasValidSession(): Boolean {
         val hasToken = secureTokenStore.getToken() != null
