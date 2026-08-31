@@ -22,6 +22,7 @@ import com.anxietywatch.mobile.data.remote.SuspectedEventRequest
 import com.anxietywatch.mobile.data.remote.TelemetrySampleDto
 import com.anxietywatch.mobile.data.remote.TriggerSosRequest
 import com.anxietywatch.mobile.data.remote.httpIbiMs
+import com.anxietywatch.mobile.observability.DebugTrace
 import com.anxietywatch.mobile.data.remote.isWearableSubmissionDelivered
 import com.anxietywatch.mobile.data.remote.responseIdMatches
 import com.google.android.gms.wearable.DataClient
@@ -345,6 +346,7 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             Log.w(TAG, "Se descartó un lote de telemetría vacío sin enviar ACK")
             return
         }
+        DebugTrace.telemetry("RECEIVED", batchId)
 
         val timestamps = samplesByTimestamp.keys.sorted()
         val request = CreateTelemetryBatchRequest(
@@ -357,6 +359,7 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             sequence = sessionContext.nextSequence(),
             samples = timestamps.map { samplesByTimestamp.getValue(it).toDto(it) },
         )
+        val existingBatch = database.pendingUploadDao().getTelemetryBatch(batchId)
         database.pendingUploadDao().insertTelemetryBatch(
             PendingTelemetryBatchEntity(
                 batchId = batchId,
@@ -366,6 +369,11 @@ class PhoneDataLayerListenerService : WearableListenerService() {
                 sourceNodeId = sourceNodeId,
             ),
         )
+        if (existingBatch == null) {
+            DebugTrace.telemetry("ROOM_PERSISTED", batchId)
+        } else {
+            DebugTrace.telemetry("ROOM_ALREADY_PRESENT", batchId)
+        }
         val pending = database.pendingUploadDao().getTelemetryBatch(batchId) ?: return
         if (pending.wearableDeviceId.isBlank()) database.pendingUploadDao().setTelemetryOwnership(batchId, deviceId)
         deliveryCoordinator.deliver(
@@ -376,8 +384,17 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             expectedId = batchId,
             ackPath = "$ACK_TELEMETRY_PREFIX$batchId",
             http = {
-                val response = api.sendTelemetryBatch(request)
-                BackendDeliveryResponse(response.batchId, response.accepted, response.duplicate)
+                val attempt = pending.attemptCount + 1
+                DebugTrace.telemetry("HTTP_ATTEMPT", batchId, "attempt=$attempt")
+                runCatching { api.sendTelemetryBatch(request) }
+                    .onSuccess { response ->
+                        DebugTrace.telemetry("HTTP_RESULT", batchId, "status=${if (response.accepted) 202 else 200}")
+                    }
+                    .onFailure {
+                        DebugTrace.telemetry("HTTP_RESULT", batchId, "status=EXCEPTION")
+                    }
+                    .getOrThrow()
+                    .let { response -> BackendDeliveryResponse(response.batchId, response.accepted, response.duplicate) }
             },
             persist = { status, reason ->
                 database.pendingUploadDao().updateTelemetryBatchStatus(batchId, status, reason)
@@ -386,6 +403,7 @@ class PhoneDataLayerListenerService : WearableListenerService() {
             incrementAttempt = { reason -> database.pendingUploadDao().incrementTelemetryAttempt(batchId, reason) },
             terminalNackPath = "$TERMINAL_NACK_TELEMETRY_PREFIX$batchId",
             terminalNackPayload = terminalTelemetryNackPayload(batchId),
+            traceTelemetryBatchId = batchId,
         )
     }
 

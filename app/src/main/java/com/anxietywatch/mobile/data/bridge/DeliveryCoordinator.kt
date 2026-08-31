@@ -2,6 +2,7 @@ package com.anxietywatch.mobile.data.bridge
 
 import com.anxietywatch.mobile.data.local.SyncStatus
 import com.anxietywatch.mobile.data.remote.isValidWearableDeviceId
+import com.anxietywatch.mobile.observability.DebugTrace
 import javax.inject.Inject
 
 interface CurrentWearablePairing {
@@ -25,21 +26,22 @@ class DeliveryCoordinator @Inject constructor(
         incrementAttempt: suspend (reason: String?) -> Unit,
         terminalNackPath: String? = null,
         terminalNackPayload: ByteArray = ByteArray(0),
+        traceTelemetryBatchId: String? = null,
     ) {
         if (!isCurrentlyPaired(wearableDeviceId)) return
 
         if (status == SyncStatus.TERMINAL_FAILED && lastError == DeliveryReason.HTTP_PERMANENT) {
             if (terminalNackPath != null) {
-                sendTerminalNackIfPossible(wearableDeviceId, terminalNackPath, terminalNackPayload)
+                sendTerminalNackIfPossible(wearableDeviceId, terminalNackPath, terminalNackPayload, traceTelemetryBatchId)
             }
             return
         }
         if (status == SyncStatus.BACKEND_DELIVERED_ACK_PENDING) {
-            sendAckIfPossible(wearableDeviceId, ackPath, persist)
+            sendAckIfPossible(wearableDeviceId, ackPath, persist, traceTelemetryBatchId)
             return
         }
         if (status == SyncStatus.DELIVERED) {
-            sendAckIfPossible(wearableDeviceId, ackPath, persist)
+            sendAckIfPossible(wearableDeviceId, ackPath, persist, traceTelemetryBatchId)
             return
         }
         if (status != SyncStatus.PENDING_HTTP || lastError == DeliveryReason.WAIT_FOR_AUTH) return
@@ -57,7 +59,7 @@ class DeliveryCoordinator @Inject constructor(
                 RetryClass.TERMINAL -> {
                     persist(SyncStatus.TERMINAL_FAILED, DeliveryReason.HTTP_PERMANENT)
                     if (terminalNackPath != null) {
-                        sendTerminalNackIfPossible(wearableDeviceId, terminalNackPath, terminalNackPayload)
+                        sendTerminalNackIfPossible(wearableDeviceId, terminalNackPath, terminalNackPayload, traceTelemetryBatchId)
                     }
                 }
             }
@@ -71,18 +73,23 @@ class DeliveryCoordinator @Inject constructor(
 
         // Durable ordering: mark backend success before attempting the ACK.
         persist(SyncStatus.BACKEND_DELIVERED_ACK_PENDING, DeliveryReason.ACK_PENDING)
-        sendAckIfPossible(wearableDeviceId, ackPath, persist)
+        sendAckIfPossible(wearableDeviceId, ackPath, persist, traceTelemetryBatchId)
     }
 
     private suspend fun sendAckIfPossible(
         wearableDeviceId: String,
         ackPath: String,
         persist: suspend (status: String, reason: String?) -> Unit,
+        traceTelemetryBatchId: String?,
     ) {
         val nodeId = pairing.lastKnownWearNodeId() ?: return
         if (!isCurrentlyPaired(wearableDeviceId)) return
         if (ackSender.sendAck(nodeId, ackPath)) {
+            traceTelemetryBatchId?.let { DebugTrace.telemetry("ACK_SENT", it) }
             persist(SyncStatus.DELIVERED, null)
+            traceTelemetryBatchId?.let { DebugTrace.telemetry("DELIVERED", it) }
+        } else {
+            traceTelemetryBatchId?.let { DebugTrace.telemetry("ACK_SEND_FAILED", it) }
         }
     }
 
@@ -90,10 +97,13 @@ class DeliveryCoordinator @Inject constructor(
         wearableDeviceId: String,
         path: String,
         payload: ByteArray,
+        traceTelemetryBatchId: String?,
     ) {
         val nodeId = pairing.lastKnownWearNodeId() ?: return
         if (!isCurrentlyPaired(wearableDeviceId)) return
-        ackSender.sendTerminalNack(nodeId, path, payload)
+        if (ackSender.sendTerminalNack(nodeId, path, payload)) {
+            traceTelemetryBatchId?.let { DebugTrace.telemetry("TERMINAL_NACK_SENT", it) }
+        }
     }
 
     private fun isCurrentlyPaired(wearableDeviceId: String): Boolean =
